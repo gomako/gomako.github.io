@@ -49,6 +49,12 @@ footer {
 	font-size: 14px;
 }
 
+svg {
+	z-index: -1;
+}
+
+/*------- Clearfix -------*/
+
 .cf:before,
 .cf:after {
     content: " "; /* 1 */

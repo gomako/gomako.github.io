@@ -11,9 +11,12 @@
     <!--[if lt IE 9]>
     <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
     <![endif]-->
+    <script src="js/libs/two.min.js"></script>
+
   </head>
 
   <body>
+    
     <div class="wrapper">
       <div id="content">
         <header class="cf">
@@ -34,8 +37,41 @@
             <a href="https://github.com/gomako">GitHub</a> |
             <a href="https://twitter.com/gomako">Twitter</a>
           
-        </footer>
+        </footer>        
       </div>
     </div>
+
+    <div id="shape"></div>
+
+      <script>
+
+      var two = new Two({
+        fullscreen: true,
+        autostart: true
+      }).appendTo(document.body);
+
+      window.onresize = function(event) {
+        group.translation.set(0,0);
+        two.update();    
+      }
+
+      var circles = []
+      for(var i = 0; i<10; i++) {
+        var circle = two.makeCircle(Math.random()*(two.width*0.5), Math.random()*(two.height*0.5), Math.random()*200);
+        circle.fill = '#e4e4e4';
+        circle.noStroke();
+        circle.opacity = (Math.random()-0.25)+0.1;
+        circles.push(circle);
+      }
+
+      var group = two.makeGroup(circles);
+        
+
+      // Don't forget to tell two to render everything
+      // to the screen
+      two.update();
+
+    </script>
+
   </body>
 </html>
