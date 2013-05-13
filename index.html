@@ -16,7 +16,7 @@
   </head>
 
   <body>
-    
+    <div id="shape"></div>
     <div class="wrapper">
       <div id="content">
         <header class="cf">
@@ -41,19 +41,30 @@
       </div>
     </div>
 
-    <div id="shape"></div>
+    
 
       <script>
 
-      var two = new Two({
-        fullscreen: true,
-        autostart: true
-      }).appendTo(document.body);
+      var elem = document.getElementById('shape');      
+      var width = innerWidth;
+      var height = innerHeight;
 
-      window.onresize = function(event) {
-        group.translation.set(0,0);
-        two.update();    
+      var two = new Two({        
+        autostart: true,
+        width: width,
+        height: height      
+      }).appendTo(elem);
+
+      window.onresize = function(event) {     
+        // Rezise the container, although I don't think there's any need! 
+        width = innerWidth;
+        height = innerHeight;
+        two.width = width;
+        two.height = height; 
+        two.update();
       }
+
+      console.log( two.width );
 
       var circles = []
       for(var i = 0; i<10; i++) {
@@ -65,7 +76,6 @@
       }
 
       var group = two.makeGroup(circles);
-        
 
       // Don't forget to tell two to render everything
       // to the screen
