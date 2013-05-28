@@ -4,19 +4,23 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="chrome=1">
     <title>goMako on GitHub</title>
-    <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
-    
-    <link rel="stylesheet" href="css/style.css">
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+    <link rel="stylesheet" href="css/style.css">
+
     <!--[if lt IE 9]>
     <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
     <![endif]-->
-    <script src="js/libs/two.min.js"></script>
+
+    <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
+
+    <script src="js/libs/raphael.js"></script>
+    <script src="js/libs/underscore-min.js"></script>
 
   </head>
 
   <body>
-    <div id="shape"></div>
+
     <div class="wrapper">
       <div id="content">
         <header class="cf">
@@ -33,53 +37,76 @@
         </section>
 
         <footer class="db2">
-          
-            <a href="https://github.com/gomako">GitHub</a> |
-            <a href="https://twitter.com/gomako">Twitter</a>
-          
-        </footer>        
+            <a href="https://github.com/gomako">GitHub</a> | <a href="https://twitter.com/gomako">Twitter</a>
+        </footer>          
       </div>
     </div>
+    <div id="paper"></div>      
 
-    
+    <script>      
 
-      <script>
+    function moveCircles()
+    {
 
-      var elem = document.getElementById('shape');      
+      // Set vars
       var width = innerWidth;
       var height = innerHeight;
 
-      var two = new Two({        
-        autostart: true,
-        width: width,
-        height: height      
-      }).appendTo(elem);
+      // Creates canvas
+      var paper = Raphael(document.getElementById('paper'), width, height);
 
-      window.onresize = function(event) {     
-        // Rezise the container, although I don't think there's any need! 
-        width = innerWidth;
-        height = innerHeight;
-        two.width = width;
-        two.height = height; 
-        two.update();
+      var centres = new Array();
+
+      var numCircles = 10;
+
+      // Loop through and draw stuff
+      for (var i = 10; i >= 0; i--)
+      {
+      
+        var rad = (Math.random()*100)+10;
+
+        // Creates circle
+        var circle = paper.circle( (Math.random()*paper.width)-rad, (Math.random()*paper.height)-rad, rad ); 
+        
+        // Sets the attributes of the circle
+        circle.attr("fill", "#ccc");
+        circle.attr("opacity",0.333);
+        circle.attr("stroke", "#ccc");
+
+        // Store centres in array
+        centres[i] = new Array(circle.attr("cx"),circle.attr("cy"));     
       }
 
-      console.log( two.width );
-
-      var circles = []
-      for(var i = 0; i<10; i++) {
-        var circle = two.makeCircle(Math.random()*(two.width*0.5), Math.random()*(two.height*0.5), Math.random()*200);
-        circle.fill = '#e4e4e4';
-        circle.noStroke();
-        circle.opacity = (Math.random()-0.25)+0.1;
-        circles.push(circle);
+      // Drawlines
+      for (var i = centres.length - 1; i >= 0; i--)
+      {
+        for (var j = centres.length - 1; j >= 0; j--)
+        {
+          ///console.log(centres[i]);
+          if(i != j)
+          {
+            var line = paper.path("M"+centres[j][0]+" "+centres[j][1]+"L"+centres[i][0]+" "+centres[i][1]);
+            line.attr("stroke","#b38f8f");
+            line.attr("opacity",0.1);
+          }        
+        }
       }
 
-      var group = two.makeGroup(circles);
+    }
+    
+    
+    // Create listener function
+    var updateLayout = _.debounce(function(e) {
 
-      // Don't forget to tell two to render everything
-      // to the screen
-      two.update();
+      // Does all the layout updating here
+      moveCircles();
+  
+    }, 200); // Maximum run of once per 500 milliseconds 
+
+    // Add event listener
+    window.addEventListener("resize", updateLayout, false);
+
+    moveCircles();
 
     </script>
 
