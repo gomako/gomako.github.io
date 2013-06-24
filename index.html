@@ -24,11 +24,11 @@
     <div class="wrapper">
       <div id="content">
         <header class="cf">
-          <h1 class="db1">gomako.github.io</h1>
+          <h1 id="strap" class="db1">gomako.github.io</h1>
         </header>
 
         <section class="cf">          
-          <h2 class="db2-db4">goMako GitHub Page</h2>
+          <h2 id="title" class="db2-db4">goMako GitHub Page</h2>
           <p class="db2-db4">Hey, I'm new here, so don't start, ok?</p>
           <p class="db2"></p>
           <p class="da3-da6">This is where I learn to use a versioning system that isn't Dropbox, which has worked pretty well for me so far, but the teams I have been part of are pretty small!</p>
@@ -36,7 +36,7 @@
           <p class="da3-da6">This site was very very heavily influenced by the guys at Gridset, I am really getting into grid systems right now and have them to thank for starting me off!</p>
         </section>
 
-        <footer class="db2">
+        <footer id="footer" class="db2">
             <a href="https://github.com/gomako">GitHub</a> | <a href="https://twitter.com/gomako">Twitter</a>
         </footer>          
       </div>
@@ -45,6 +45,16 @@
 
 
     <script>      
+    function getPos(el)
+    {
+        // yay readability
+        for (var lx=0, ly=0;
+             el != null;
+             lx += el.offsetLeft, ly += el.offsetTop, el = el.offsetParent);
+        return {x: lx,y: ly};
+    }
+
+    var rad = (Math.random()*100)+10;
 
     function moveCircles()
     {
@@ -52,10 +62,41 @@
       // Set vars
       var width = innerWidth;
       var height = innerHeight;
-
+      var linecol = "#999";
       // Creates canvas
       var paper = Raphael(document.getElementById('paper'), width, height);
 
+      offsets = document.getElementById('title').getBoundingClientRect();
+      footer = document.getElementById('footer').getBoundingClientRect();      
+      strap = document.getElementById('strap').getBoundingClientRect();      
+
+      var circle = paper.circle( offsets.left, offsets.bottom, rad );
+      circle.attr("fill", "#ccc");
+      circle.attr("opacity",0.333);
+      circle.attr("stroke", "#ccc");
+
+      var line = paper.path("M"+offsets.left+" "+offsets.bottom+"L"+offsets.right+" "+offsets.bottom);
+      line.attr("stroke",linecol);
+      line.attr("opacity",0.5);
+      var line = paper.path("M"+offsets.right+" "+offsets.bottom+"L"+footer.left+" "+footer.bottom);
+      line.attr("stroke",linecol);
+      line.attr("opacity",0.5);
+
+      var line = paper.path("M"+strap.left+" "+strap.bottom+"L"+strap.right+" "+strap.top);
+      line.attr("stroke",linecol);
+      line.attr("opacity",0.5);
+
+      var line = paper.path("M"+footer.left+" "+footer.bottom+"L"+offsets.right+" "+footer.bottom);
+      line.attr("stroke",linecol);
+      line.attr("opacity",0.5);
+
+      var circle = paper.circle( strap.left, strap.bottom, rad*0.618 );
+      circle.attr("fill", "#ccc");
+      circle.attr("opacity",0.333);
+      circle.attr("stroke", "#ccc");
+
+      
+      /*
       var centres = new Array();
 
       var numCircles = 10;
@@ -92,6 +133,7 @@
           }        
         }
       }
+      */
 
     }
     
@@ -102,7 +144,7 @@
       // Does all the layout updating here
       moveCircles();
   
-    }, 200); // Maximum run of once per 500 milliseconds 
+    }, 50); // Maximum run of once per 500 milliseconds 
 
     // Add event listener
     window.addEventListener("resize", updateLayout, false);
@@ -110,6 +152,6 @@
     moveCircles();
 
     </script>
-
+    
   </body>
 </html>
