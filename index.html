@@ -7,149 +7,94 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 
     <link rel="stylesheet" href="css/style.css">
-
     <!--[if lt IE 9]>
     <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
     <![endif]-->
-
     <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
 
-    <script src="js/libs/raphael.js"></script>
+    <script src="js/libs/two.js"></script>
     <script src="js/libs/underscore-min.js"></script>
 
   </head>
 
   <body>
-
+    
+    <svg id="skull" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+     width="841.89px" height="595.28px" viewBox="0 0 841.89 595.28" enable-background="new 0 0 841.89 595.28" xml:space="preserve">
+    <path d="M691.29,165.877c-7.657-23.363-32.805-36.095-56.169-28.437l-84.605,27.733c23.363-7.658,36.096-32.805,28.438-56.171
+    c-7.658-23.362-32.805-36.095-56.169-28.437L281.991,159.49c-93.455,30.632-144.383,131.223-113.752,224.676
+    c30.632,93.454,131.223,144.383,224.677,113.751l230.203-75.454c23.363-7.656,36.096-32.806,28.438-56.171
+    c-7.657-23.362-32.805-36.095-56.169-28.437l52.895-17.334c23.362-7.66,36.096-32.806,28.437-56.171
+    c-7.656-23.362-32.806-36.094-56.169-28.437l42.305-13.866C686.217,214.39,698.948,189.241,691.29,165.877z"/>
+    <ellipse fill="#FFFFFF" cx="399.94" cy="291.647" ry="49.577" rx="30.193"/>    
+    <ellipse fill="#FFFFFF" cx="265.201" cy="291.164" ry="49.579" rx="30.194"/>
+    <path fill="#FFFFFF" d="M434.812,383.026c-26.012,25.826-60.04,40.614-96.397,42.044l-0.101,27.588
+    c-0.012,3.513-2.87,6.348-6.382,6.338c-3.513-0.015-6.349-2.872-6.337-6.383l0.099-27.589
+    c-36.347-1.691-70.266-16.719-96.095-42.737c-2.796-2.814-2.78-7.365,0.037-10.16c2.816-2.797,7.366-2.779,10.16,0.037
+    c23.125,23.289,53.441,36.812,85.951,38.477l0.165-46.061l-20.643-0.074l20.808-45.551l0.361-100.803
+    c0.013-3.514,2.87-6.351,6.383-6.337c3.51,0.012,6.349,2.87,6.338,6.381l-0.362,100.806l20.478,45.698l-20.643-0.074l-0.165,46.062
+    c32.521-1.433,62.932-14.737,86.221-37.86c2.816-2.797,7.366-2.779,10.161,0.038C437.646,375.68,437.628,380.23,434.812,383.026z"/>
+    </svg>
+    
     <div class="wrapper">
       <div id="content">
         <header class="cf">
           <h1 id="strap" class="db1">gomako.github.io</h1>
         </header>
-
-        <section class="cf">          
-          <h2 id="title" class="db2-db4">goMako GitHub Page</h2>
-          <p class="db2-db4">Hey, I'm new here, so don't start, ok?</p>
-          <p class="db2"></p>
-          <p class="da3-da6">This is where I learn to use a versioning system that isn't Dropbox, which has worked pretty well for me so far, but the teams I have been part of are pretty small!</p>
-          <p class="da3-da6">The sites and apps that I make now I want to look good and give the user the best experience possible in the site they are using.</p>
-          <p class="da3-da6">This site was very very heavily influenced by the guys at Gridset, I am really getting into grid systems right now and have them to thank for starting me off!</p>
-        </section>
-
+        <div id="paper"></div>
         <footer id="footer" class="db2">
             <a href="https://github.com/gomako">GitHub</a> | <a href="https://twitter.com/gomako">Twitter</a>
         </footer>          
       </div>
     </div>
-    <div id="paper"></div>      
-
-
-    <script>      
-    function getPos(el)
-    {
-        // yay readability
-        for (var lx=0, ly=0;
-             el != null;
-             lx += el.offsetLeft, ly += el.offsetTop, el = el.offsetParent);
-        return {x: lx,y: ly};
-    }
-
-    var rad = (Math.random()*100)+10;
-
-    function moveCircles()
-    {
-
-      // Set vars
-      var width = innerWidth;
-      var height = innerHeight;
-      var linecol = "#999";
-      // Creates canvas
-      var paper = Raphael(document.getElementById('paper'), width, height);
-
-      offsets = document.getElementById('title').getBoundingClientRect();
-      footer = document.getElementById('footer').getBoundingClientRect();      
-      strap = document.getElementById('strap').getBoundingClientRect();      
-
-      var circle = paper.circle( offsets.left, offsets.bottom, rad );
-      circle.attr("fill", "#ccc");
-      circle.attr("opacity",0.333);
-      circle.attr("stroke", "#ccc");
-
-      var line = paper.path("M"+offsets.left+" "+offsets.bottom+"L"+offsets.right+" "+offsets.bottom);
-      line.attr("stroke",linecol);
-      line.attr("opacity",0.5);
-      var line = paper.path("M"+offsets.right+" "+offsets.bottom+"L"+footer.left+" "+footer.bottom);
-      line.attr("stroke",linecol);
-      line.attr("opacity",0.5);
-
-      var line = paper.path("M"+strap.left+" "+strap.bottom+"L"+strap.right+" "+strap.top);
-      line.attr("stroke",linecol);
-      line.attr("opacity",0.5);
-
-      var line = paper.path("M"+footer.left+" "+footer.bottom+"L"+offsets.right+" "+footer.bottom);
-      line.attr("stroke",linecol);
-      line.attr("opacity",0.5);
-
-      var circle = paper.circle( strap.left, strap.bottom, rad*0.618 );
-      circle.attr("fill", "#ccc");
-      circle.attr("opacity",0.333);
-      circle.attr("stroke", "#ccc");
-
       
-      /*
-      var centres = new Array();
+    <script>          
 
-      var numCircles = 10;
+    var paper = document.getElementById('paper');    
+    var skully = document.getElementById('skull');    
 
-      // Loop through and draw stuff
-      for (var i = 10; i >= 0; i--)
+    var two = new Two({
+      fullscreen: true,
+      autosrtart: true
+    }).appendTo(paper);
+    
+    var easing = 0.09;
+    var xWob = 1.2;
+    var yWob = 1.2;
+
+    var shape = two.interpret(skully).center();
+
+    shape.scale = 0;
+    shape.children[2].fill = 'orangered';    
+    shape.translation.set(400, 200);
+    
+    // Loop through vertices
+      _.each(shape.children, function(c) {
+        _.each(c.vertices, function(v) {      
+          v.ox = v.x;
+          v.oy = v.y;
+        });
+      });
+    
+    two.bind('update', function(frameCount) {
+      if (shape.scale < 5)
       {
+        var t = (2 - shape.scale) * easing;
+        shape.scale += t;
+      }
+      _.each(shape.children, function(c) {
+        _.each(c.vertices, function(v) {      
+          var x = v.ox + Math.random()*xWob;
+          var y = v.oy + Math.random()*yWob;
+          v.set(x, y);
+        });
+      });
       
-        var rad = (Math.random()*100)+10;
+      
 
-        // Creates circle
-        var circle = paper.circle( (Math.random()*paper.width)-rad, (Math.random()*paper.height)-rad, rad ); 
-        
-        // Sets the attributes of the circle
-        circle.attr("fill", "#ccc");
-        circle.attr("opacity",0.333);
-        circle.attr("stroke", "#ccc");
+    }).play();
 
-        // Store centres in array
-        centres[i] = new Array(circle.attr("cx"),circle.attr("cy"));     
-      }
-
-      // Drawlines
-      for (var i = centres.length - 1; i >= 0; i--)
-      {
-        for (var j = centres.length - 1; j >= 0; j--)
-        {
-          ///console.log(centres[i]);
-          if(i != j)
-          {
-            var line = paper.path("M"+centres[j][0]+" "+centres[j][1]+"L"+centres[i][0]+" "+centres[i][1]);
-            line.attr("stroke","#b38f8f");
-            line.attr("opacity",0.1);
-          }        
-        }
-      }
-      */
-
-    }
-    
-    
-    // Create listener function
-    var updateLayout = _.debounce(function(e) {
-
-      // Does all the layout updating here
-      moveCircles();
-  
-    }, 50); // Maximum run of once per 500 milliseconds 
-
-    // Add event listener
-    window.addEventListener("resize", updateLayout, false);
-
-    moveCircles();
+    two.update();
 
     </script>
     
