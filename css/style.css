@@ -17,7 +17,7 @@ a:hover {
 	text-decoration: underline;
 }
 
-section
+section,
 .wrapper {
 	width: 61.8%;
 	max-width: 1200px;
