@@ -1,0 +1,18 @@
+
+/*------- Das Styles -------*/
+
+body {
+	background-color: $bg-body;
+}
+
+header,
+section,
+footer {
+	max-width:100%;
+	max-width: $block-width;
+	margin: 0 auto;
+}
+
+#skullSkull {
+	display: none;
+}

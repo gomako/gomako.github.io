@@ -27,13 +27,10 @@
  */
 
 
-//     Underscore.js 1.3.3
-//     (c) 2009-2012 Jeremy Ashkenas, DocumentCloud Inc.
-//     Underscore is freely distributable under the MIT license.
-//     Portions of Underscore are inspired or borrowed from Prototype,
-//     Oliver Steele's Functional, and John Resig's Micro-Templating.
-//     For all details and documentation:
-//     http://documentcloud.github.com/underscore
+//     Underscore.js 1.5.1
+//     http://underscorejs.org
+//     (c) 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+//     Underscore may be freely distributed under the MIT license.
 
 (function() {
 
@@ -53,10 +50,12 @@
   var ArrayProto = Array.prototype, ObjProto = Object.prototype, FuncProto = Function.prototype;
 
   // Create quick reference variables for speed access to core prototypes.
-  var slice            = ArrayProto.slice,
-      unshift          = ArrayProto.unshift,
-      toString         = ObjProto.toString,
-      hasOwnProperty   = ObjProto.hasOwnProperty;
+  var
+    push             = ArrayProto.push,
+    slice            = ArrayProto.slice,
+    concat           = ArrayProto.concat,
+    toString         = ObjProto.toString,
+    hasOwnProperty   = ObjProto.hasOwnProperty;
 
   // All **ECMAScript 5** native function implementations that we hope to use
   // are declared here.
@@ -75,7 +74,11 @@
     nativeBind         = FuncProto.bind;
 
   // Create a safe reference to the Underscore object for use below.
-  var _ = function(obj) { return new wrapper(obj); };
+  var _ = function(obj) {
+    if (obj instanceof _) return obj;
+    if (!(this instanceof _)) return new _(obj);
+    this._wrapped = obj;
+  };
 
   // Export the Underscore object for **Node.js**, with
   // backwards-compatibility for the old `require()` API. If we're in
@@ -87,11 +90,11 @@
     }
     exports._ = _;
   } else {
-    root['_'] = _;
+    root._ = _;
   }
 
   // Current version.
-  _.VERSION = '1.3.3';
+  _.VERSION = '1.5.1';
 
   // Collection Functions
   // --------------------
@@ -105,7 +108,7 @@
       obj.forEach(iterator, context);
     } else if (obj.length === +obj.length) {
       for (var i = 0, l = obj.length; i < l; i++) {
-        if (i in obj && iterator.call(context, obj[i], i, obj) === breaker) return;
+        if (iterator.call(context, obj[i], i, obj) === breaker) return;
       }
     } else {
       for (var key in obj) {
@@ -123,11 +126,12 @@
     if (obj == null) return results;
     if (nativeMap && obj.map === nativeMap) return obj.map(iterator, context);
     each(obj, function(value, index, list) {
-      results[results.length] = iterator.call(context, value, index, list);
+      results.push(iterator.call(context, value, index, list));
     });
-    if (obj.length === +obj.length) results.length = obj.length;
     return results;
   };
+
+  var reduceError = 'Reduce of empty array with no initial value';
 
   // **Reduce** builds up a single result from a list of values, aka `inject`,
   // or `foldl`. Delegates to **ECMAScript 5**'s native `reduce` if available.
@@ -146,7 +150,7 @@
         memo = iterator.call(context, memo, value, index, list);
       }
     });
-    if (!initial) throw new TypeError('Reduce of empty array with no initial value');
+    if (!initial) throw new TypeError(reduceError);
     return memo;
   };
 
@@ -159,9 +163,22 @@
       if (context) iterator = _.bind(iterator, context);
       return initial ? obj.reduceRight(iterator, memo) : obj.reduceRight(iterator);
     }
-    var reversed = _.toArray(obj).reverse();
-    if (context && !initial) iterator = _.bind(iterator, context);
-    return initial ? _.reduce(reversed, iterator, memo, context) : _.reduce(reversed, iterator);
+    var length = obj.length;
+    if (length !== +length) {
+      var keys = _.keys(obj);
+      length = keys.length;
+    }
+    each(obj, function(value, index, list) {
+      index = keys ? keys[--length] : --length;
+      if (!initial) {
+        memo = obj[index];
+        initial = true;
+      } else {
+        memo = iterator.call(context, memo, obj[index], index, list);
+      }
+    });
+    if (!initial) throw new TypeError(reduceError);
+    return memo;
   };
 
   // Return the first value which passes a truth test. Aliased as `detect`.
@@ -184,25 +201,23 @@
     if (obj == null) return results;
     if (nativeFilter && obj.filter === nativeFilter) return obj.filter(iterator, context);
     each(obj, function(value, index, list) {
-      if (iterator.call(context, value, index, list)) results[results.length] = value;
+      if (iterator.call(context, value, index, list)) results.push(value);
     });
     return results;
   };
 
   // Return all the elements for which a truth test fails.
   _.reject = function(obj, iterator, context) {
-    var results = [];
-    if (obj == null) return results;
-    each(obj, function(value, index, list) {
-      if (!iterator.call(context, value, index, list)) results[results.length] = value;
-    });
-    return results;
+    return _.filter(obj, function(value, index, list) {
+      return !iterator.call(context, value, index, list);
+    }, context);
   };
 
   // Determine whether all of the elements match a truth test.
   // Delegates to **ECMAScript 5**'s native `every` if available.
   // Aliased as `all`.
   _.every = _.all = function(obj, iterator, context) {
+    iterator || (iterator = _.identity);
     var result = true;
     if (obj == null) return result;
     if (nativeEvery && obj.every === nativeEvery) return obj.every(iterator, context);
@@ -226,23 +241,22 @@
     return !!result;
   };
 
-  // Determine if a given value is included in the array or object using `===`.
-  // Aliased as `contains`.
-  _.include = _.contains = function(obj, target) {
-    var found = false;
-    if (obj == null) return found;
+  // Determine if the array or object contains a given value (using `===`).
+  // Aliased as `include`.
+  _.contains = _.include = function(obj, target) {
+    if (obj == null) return false;
     if (nativeIndexOf && obj.indexOf === nativeIndexOf) return obj.indexOf(target) != -1;
-    found = any(obj, function(value) {
+    return any(obj, function(value) {
       return value === target;
     });
-    return found;
   };
 
   // Invoke a method (with arguments) on every item in a collection.
   _.invoke = function(obj, method) {
     var args = slice.call(arguments, 2);
+    var isFunc = _.isFunction(method);
     return _.map(obj, function(value) {
-      return (_.isFunction(method) ? method || value : value[method]).apply(value, args);
+      return (isFunc ? method : value[method]).apply(value, args);
     });
   };
 
@@ -251,23 +265,47 @@
     return _.map(obj, function(value){ return value[key]; });
   };
 
+  // Convenience version of a common use case of `filter`: selecting only objects
+  // containing specific `key:value` pairs.
+  _.where = function(obj, attrs, first) {
+    if (_.isEmpty(attrs)) return first ? void 0 : [];
+    return _[first ? 'find' : 'filter'](obj, function(value) {
+      for (var key in attrs) {
+        if (attrs[key] !== value[key]) return false;
+      }
+      return true;
+    });
+  };
+
+  // Convenience version of a common use case of `find`: getting the first object
+  // containing specific `key:value` pairs.
+  _.findWhere = function(obj, attrs) {
+    return _.where(obj, attrs, true);
+  };
+
   // Return the maximum element or (element-based computation).
+  // Can't optimize arrays of integers longer than 65,535 elements.
+  // See [WebKit Bug 80797](https://bugs.webkit.org/show_bug.cgi?id=80797)
   _.max = function(obj, iterator, context) {
-    if (!iterator && _.isArray(obj) && obj[0] === +obj[0]) return Math.max.apply(Math, obj);
+    if (!iterator && _.isArray(obj) && obj[0] === +obj[0] && obj.length < 65535) {
+      return Math.max.apply(Math, obj);
+    }
     if (!iterator && _.isEmpty(obj)) return -Infinity;
-    var result = {computed : -Infinity};
+    var result = {computed : -Infinity, value: -Infinity};
     each(obj, function(value, index, list) {
       var computed = iterator ? iterator.call(context, value, index, list) : value;
-      computed >= result.computed && (result = {value : value, computed : computed});
+      computed > result.computed && (result = {value : value, computed : computed});
     });
     return result.value;
   };
 
   // Return the minimum element (or element-based computation).
   _.min = function(obj, iterator, context) {
-    if (!iterator && _.isArray(obj) && obj[0] === +obj[0]) return Math.min.apply(Math, obj);
+    if (!iterator && _.isArray(obj) && obj[0] === +obj[0] && obj.length < 65535) {
+      return Math.min.apply(Math, obj);
+    }
     if (!iterator && _.isEmpty(obj)) return Infinity;
-    var result = {computed : Infinity};
+    var result = {computed : Infinity, value: Infinity};
     each(obj, function(value, index, list) {
       var computed = iterator ? iterator.call(context, value, index, list) : value;
       computed < result.computed && (result = {value : value, computed : computed});
@@ -277,67 +315,96 @@
 
   // Shuffle an array.
   _.shuffle = function(obj) {
-    var shuffled = [], rand;
-    each(obj, function(value, index, list) {
-      rand = Math.floor(Math.random() * (index + 1));
-      shuffled[index] = shuffled[rand];
+    var rand;
+    var index = 0;
+    var shuffled = [];
+    each(obj, function(value) {
+      rand = _.random(index++);
+      shuffled[index - 1] = shuffled[rand];
       shuffled[rand] = value;
     });
     return shuffled;
   };
 
+  // An internal function to generate lookup iterators.
+  var lookupIterator = function(value) {
+    return _.isFunction(value) ? value : function(obj){ return obj[value]; };
+  };
+
   // Sort the object's values by a criterion produced by an iterator.
-  _.sortBy = function(obj, val, context) {
-    var iterator = _.isFunction(val) ? val : function(obj) { return obj[val]; };
+  _.sortBy = function(obj, value, context) {
+    var iterator = lookupIterator(value);
     return _.pluck(_.map(obj, function(value, index, list) {
       return {
         value : value,
+        index : index,
         criteria : iterator.call(context, value, index, list)
       };
     }).sort(function(left, right) {
-      var a = left.criteria, b = right.criteria;
-      if (a === void 0) return 1;
-      if (b === void 0) return -1;
-      return a < b ? -1 : a > b ? 1 : 0;
+      var a = left.criteria;
+      var b = right.criteria;
+      if (a !== b) {
+        if (a > b || a === void 0) return 1;
+        if (a < b || b === void 0) return -1;
+      }
+      return left.index < right.index ? -1 : 1;
     }), 'value');
   };
 
-  // Groups the object's values by a criterion. Pass either a string attribute
-  // to group by, or a function that returns the criterion.
-  _.groupBy = function(obj, val) {
+  // An internal function used for aggregate "group by" operations.
+  var group = function(obj, value, context, behavior) {
     var result = {};
-    var iterator = _.isFunction(val) ? val : function(obj) { return obj[val]; };
+    var iterator = lookupIterator(value == null ? _.identity : value);
     each(obj, function(value, index) {
-      var key = iterator(value, index);
-      (result[key] || (result[key] = [])).push(value);
+      var key = iterator.call(context, value, index, obj);
+      behavior(result, key, value);
     });
     return result;
   };
 
-  // Use a comparator function to figure out at what index an object should
-  // be inserted so as to maintain order. Uses binary search.
-  _.sortedIndex = function(array, obj, iterator) {
-    iterator || (iterator = _.identity);
+  // Groups the object's values by a criterion. Pass either a string attribute
+  // to group by, or a function that returns the criterion.
+  _.groupBy = function(obj, value, context) {
+    return group(obj, value, context, function(result, key, value) {
+      (_.has(result, key) ? result[key] : (result[key] = [])).push(value);
+    });
+  };
+
+  // Counts instances of an object that group by a certain criterion. Pass
+  // either a string attribute to count by, or a function that returns the
+  // criterion.
+  _.countBy = function(obj, value, context) {
+    return group(obj, value, context, function(result, key) {
+      if (!_.has(result, key)) result[key] = 0;
+      result[key]++;
+    });
+  };
+
+  // Use a comparator function to figure out the smallest index at which
+  // an object should be inserted so as to maintain order. Uses binary search.
+  _.sortedIndex = function(array, obj, iterator, context) {
+    iterator = iterator == null ? _.identity : lookupIterator(iterator);
+    var value = iterator.call(context, obj);
     var low = 0, high = array.length;
     while (low < high) {
-      var mid = (low + high) >> 1;
-      iterator(array[mid]) < iterator(obj) ? low = mid + 1 : high = mid;
+      var mid = (low + high) >>> 1;
+      iterator.call(context, array[mid]) < value ? low = mid + 1 : high = mid;
     }
     return low;
   };
 
-  // Safely convert anything iterable into a real, live array.
+  // Safely create a real, live array from anything iterable.
   _.toArray = function(obj) {
-    if (!obj)                                     return [];
-    if (_.isArray(obj))                           return slice.call(obj);
-    if (_.isArguments(obj))                       return slice.call(obj);
-    if (obj.toArray && _.isFunction(obj.toArray)) return obj.toArray();
+    if (!obj) return [];
+    if (_.isArray(obj)) return slice.call(obj);
+    if (obj.length === +obj.length) return _.map(obj, _.identity);
     return _.values(obj);
   };
 
   // Return the number of elements in an object.
   _.size = function(obj) {
-    return _.isArray(obj) ? obj.length : _.keys(obj).length;
+    if (obj == null) return 0;
+    return (obj.length === +obj.length) ? obj.length : _.keys(obj).length;
   };
 
   // Array Functions
@@ -347,10 +414,11 @@
   // values in the array. Aliased as `head` and `take`. The **guard** check
   // allows it to work with `_.map`.
   _.first = _.head = _.take = function(array, n, guard) {
+    if (array == null) return void 0;
     return (n != null) && !guard ? slice.call(array, 0, n) : array[0];
   };
 
-  // Returns everything but the last entry of the array. Especcialy useful on
+  // Returns everything but the last entry of the array. Especially useful on
   // the arguments object. Passing **n** will return all the values in
   // the array, excluding the last N. The **guard** check allows it to work with
   // `_.map`.
@@ -361,6 +429,7 @@
   // Get the last element of an array. Passing **n** will return the last N
   // values in the array. The **guard** check allows it to work with `_.map`.
   _.last = function(array, n, guard) {
+    if (array == null) return void 0;
     if ((n != null) && !guard) {
       return slice.call(array, Math.max(array.length - n, 0));
     } else {
@@ -368,26 +437,37 @@
     }
   };
 
-  // Returns everything but the first entry of the array. Aliased as `tail`.
-  // Especially useful on the arguments object. Passing an **index** will return
-  // the rest of the values in the array from that index onward. The **guard**
+  // Returns everything but the first entry of the array. Aliased as `tail` and `drop`.
+  // Especially useful on the arguments object. Passing an **n** will return
+  // the rest N values in the array. The **guard**
   // check allows it to work with `_.map`.
-  _.rest = _.tail = function(array, index, guard) {
-    return slice.call(array, (index == null) || guard ? 1 : index);
+  _.rest = _.tail = _.drop = function(array, n, guard) {
+    return slice.call(array, (n == null) || guard ? 1 : n);
   };
 
   // Trim out all falsy values from an array.
   _.compact = function(array) {
-    return _.filter(array, function(value){ return !!value; });
+    return _.filter(array, _.identity);
+  };
+
+  // Internal implementation of a recursive `flatten` function.
+  var flatten = function(input, shallow, output) {
+    if (shallow && _.every(input, _.isArray)) {
+      return concat.apply(output, input);
+    }
+    each(input, function(value) {
+      if (_.isArray(value) || _.isArguments(value)) {
+        shallow ? push.apply(output, value) : flatten(value, shallow, output);
+      } else {
+        output.push(value);
+      }
+    });
+    return output;
   };
 
   // Return a completely flattened version of an array.
   _.flatten = function(array, shallow) {
-    return _.reduce(array, function(memo, value) {
-      if (_.isArray(value)) return memo.concat(shallow ? value : _.flatten(value));
-      memo[memo.length] = value;
-      return memo;
-    }, []);
+    return flatten(array, shallow, []);
   };
 
   // Return a version of the array that does not contain the specified value(s).
@@ -398,18 +478,21 @@
   // Produce a duplicate-free version of the array. If the array has already
   // been sorted, you have the option of using a faster algorithm.
   // Aliased as `unique`.
-  _.uniq = _.unique = function(array, isSorted, iterator) {
-    var initial = iterator ? _.map(array, iterator) : array;
+  _.uniq = _.unique = function(array, isSorted, iterator, context) {
+    if (_.isFunction(isSorted)) {
+      context = iterator;
+      iterator = isSorted;
+      isSorted = false;
+    }
+    var initial = iterator ? _.map(array, iterator, context) : array;
     var results = [];
-    // The `isSorted` flag is irrelevant if the array only contains two elements.
-    if (array.length < 3) isSorted = true;
-    _.reduce(initial, function (memo, value, index) {
-      if (isSorted ? _.last(memo) !== value || !memo.length : !_.include(memo, value)) {
-        memo.push(value);
+    var seen = [];
+    each(initial, function(value, index) {
+      if (isSorted ? (!index || seen[seen.length - 1] !== value) : !_.contains(seen, value)) {
+        seen.push(value);
         results.push(array[index]);
       }
-      return memo;
-    }, []);
+    });
     return results;
   };
 
@@ -420,8 +503,8 @@
   };
 
   // Produce an array that contains every item shared between all the
-  // passed-in arrays. (Aliased as "intersect" for back-compat.)
-  _.intersection = _.intersect = function(array) {
+  // passed-in arrays.
+  _.intersection = function(array) {
     var rest = slice.call(arguments, 1);
     return _.filter(_.uniq(array), function(item) {
       return _.every(rest, function(other) {
@@ -433,18 +516,35 @@
   // Take the difference between one array and a number of other arrays.
   // Only the elements present in just the first array will remain.
   _.difference = function(array) {
-    var rest = _.flatten(slice.call(arguments, 1), true);
-    return _.filter(array, function(value){ return !_.include(rest, value); });
+    var rest = concat.apply(ArrayProto, slice.call(arguments, 1));
+    return _.filter(array, function(value){ return !_.contains(rest, value); });
   };
 
   // Zip together multiple lists into a single array -- elements that share
   // an index go together.
   _.zip = function() {
-    var args = slice.call(arguments);
-    var length = _.max(_.pluck(args, 'length'));
+    var length = _.max(_.pluck(arguments, "length").concat(0));
     var results = new Array(length);
-    for (var i = 0; i < length; i++) results[i] = _.pluck(args, "" + i);
+    for (var i = 0; i < length; i++) {
+      results[i] = _.pluck(arguments, '' + i);
+    }
     return results;
+  };
+
+  // Converts lists into objects. Pass either a single array of `[key, value]`
+  // pairs, or two parallel arrays of the same length -- one of keys, and one of
+  // the corresponding values.
+  _.object = function(list, values) {
+    if (list == null) return {};
+    var result = {};
+    for (var i = 0, l = list.length; i < l; i++) {
+      if (values) {
+        result[list[i]] = values[i];
+      } else {
+        result[list[i][0]] = list[i][1];
+      }
+    }
+    return result;
   };
 
   // If the browser doesn't supply us with indexOf (I'm looking at you, **MSIE**),
@@ -455,22 +555,29 @@
   // for **isSorted** to use binary search.
   _.indexOf = function(array, item, isSorted) {
     if (array == null) return -1;
-    var i, l;
+    var i = 0, l = array.length;
     if (isSorted) {
-      i = _.sortedIndex(array, item);
-      return array[i] === item ? i : -1;
+      if (typeof isSorted == 'number') {
+        i = (isSorted < 0 ? Math.max(0, l + isSorted) : isSorted);
+      } else {
+        i = _.sortedIndex(array, item);
+        return array[i] === item ? i : -1;
+      }
     }
-    if (nativeIndexOf && array.indexOf === nativeIndexOf) return array.indexOf(item);
-    for (i = 0, l = array.length; i < l; i++) if (i in array && array[i] === item) return i;
+    if (nativeIndexOf && array.indexOf === nativeIndexOf) return array.indexOf(item, isSorted);
+    for (; i < l; i++) if (array[i] === item) return i;
     return -1;
   };
 
   // Delegates to **ECMAScript 5**'s native `lastIndexOf` if available.
-  _.lastIndexOf = function(array, item) {
+  _.lastIndexOf = function(array, item, from) {
     if (array == null) return -1;
-    if (nativeLastIndexOf && array.lastIndexOf === nativeLastIndexOf) return array.lastIndexOf(item);
-    var i = array.length;
-    while (i--) if (i in array && array[i] === item) return i;
+    var hasIndex = from != null;
+    if (nativeLastIndexOf && array.lastIndexOf === nativeLastIndexOf) {
+      return hasIndex ? array.lastIndexOf(item, from) : array.lastIndexOf(item);
+    }
+    var i = (hasIndex ? from : array.length);
+    while (i--) if (array[i] === item) return i;
     return -1;
   };
 
@@ -503,21 +610,30 @@
   var ctor = function(){};
 
   // Create a function bound to a given object (assigning `this`, and arguments,
-  // optionally). Binding with arguments is also known as `curry`.
-  // Delegates to **ECMAScript 5**'s native `Function.bind` if available.
-  // We check for `func.bind` first, to fail fast when `func` is undefined.
-  _.bind = function bind(func, context) {
-    var bound, args;
-    if (func.bind === nativeBind && nativeBind) return nativeBind.apply(func, slice.call(arguments, 1));
+  // optionally). Delegates to **ECMAScript 5**'s native `Function.bind` if
+  // available.
+  _.bind = function(func, context) {
+    var args, bound;
+    if (nativeBind && func.bind === nativeBind) return nativeBind.apply(func, slice.call(arguments, 1));
     if (!_.isFunction(func)) throw new TypeError;
     args = slice.call(arguments, 2);
     return bound = function() {
       if (!(this instanceof bound)) return func.apply(context, args.concat(slice.call(arguments)));
       ctor.prototype = func.prototype;
       var self = new ctor;
+      ctor.prototype = null;
       var result = func.apply(self, args.concat(slice.call(arguments)));
       if (Object(result) === result) return result;
       return self;
+    };
+  };
+
+  // Partially apply a function by creating a version that has had some of its
+  // arguments pre-filled, without changing its dynamic `this` context.
+  _.partial = function(func) {
+    var args = slice.call(arguments, 1);
+    return function() {
+      return func.apply(this, args.concat(slice.call(arguments)));
     };
   };
 
@@ -525,7 +641,7 @@
   // all callbacks defined on an object belong to it.
   _.bindAll = function(obj) {
     var funcs = slice.call(arguments, 1);
-    if (funcs.length == 0) funcs = _.functions(obj);
+    if (funcs.length === 0) throw new Error("bindAll must be passed function names");
     each(funcs, function(f) { obj[f] = _.bind(obj[f], obj); });
     return obj;
   };
@@ -554,25 +670,34 @@
   };
 
   // Returns a function, that, when invoked, will only be triggered at most once
-  // during a given window of time.
-  _.throttle = function(func, wait) {
-    var context, args, timeout, throttling, more, result;
-    var whenDone = _.debounce(function(){ more = throttling = false; }, wait);
+  // during a given window of time. Normally, the throttled function will run
+  // as much as it can, without ever going more than once per `wait` duration;
+  // but if you'd like to disable the execution on the leading edge, pass
+  // `{leading: false}`. To disable execution on the trailing edge, ditto.
+  _.throttle = function(func, wait, options) {
+    var context, args, result;
+    var timeout = null;
+    var previous = 0;
+    options || (options = {});
+    var later = function() {
+      previous = options.leading === false ? 0 : new Date;
+      timeout = null;
+      result = func.apply(context, args);
+    };
     return function() {
-      context = this; args = arguments;
-      var later = function() {
+      var now = new Date;
+      if (!previous && options.leading === false) previous = now;
+      var remaining = wait - (now - previous);
+      context = this;
+      args = arguments;
+      if (remaining <= 0) {
+        clearTimeout(timeout);
         timeout = null;
-        if (more) func.apply(context, args);
-        whenDone();
-      };
-      if (!timeout) timeout = setTimeout(later, wait);
-      if (throttling) {
-        more = true;
-      } else {
+        previous = now;
         result = func.apply(context, args);
+      } else if (!timeout && options.trailing !== false) {
+        timeout = setTimeout(later, remaining);
       }
-      whenDone();
-      throttling = true;
       return result;
     };
   };
@@ -582,16 +707,19 @@
   // N milliseconds. If `immediate` is passed, trigger the function on the
   // leading edge, instead of the trailing.
   _.debounce = function(func, wait, immediate) {
-    var timeout;
+    var result;
+    var timeout = null;
     return function() {
       var context = this, args = arguments;
       var later = function() {
         timeout = null;
-        if (!immediate) func.apply(context, args);
+        if (!immediate) result = func.apply(context, args);
       };
-      if (immediate && !timeout) func.apply(context, args);
+      var callNow = immediate && !timeout;
       clearTimeout(timeout);
       timeout = setTimeout(later, wait);
+      if (callNow) result = func.apply(context, args);
+      return result;
     };
   };
 
@@ -602,7 +730,9 @@
     return function() {
       if (ran) return memo;
       ran = true;
-      return memo = func.apply(this, arguments);
+      memo = func.apply(this, arguments);
+      func = null;
+      return memo;
     };
   };
 
@@ -611,7 +741,8 @@
   // conditionally execute the original function.
   _.wrap = function(func, wrapper) {
     return function() {
-      var args = [func].concat(slice.call(arguments, 0));
+      var args = [func];
+      push.apply(args, arguments);
       return wrapper.apply(this, args);
     };
   };
@@ -631,9 +762,10 @@
 
   // Returns a function that will only be executed after being called N times.
   _.after = function(times, func) {
-    if (times <= 0) return func();
     return function() {
-      if (--times < 1) { return func.apply(this, arguments); }
+      if (--times < 1) {
+        return func.apply(this, arguments);
+      }
     };
   };
 
@@ -645,13 +777,29 @@
   _.keys = nativeKeys || function(obj) {
     if (obj !== Object(obj)) throw new TypeError('Invalid object');
     var keys = [];
-    for (var key in obj) if (_.has(obj, key)) keys[keys.length] = key;
+    for (var key in obj) if (_.has(obj, key)) keys.push(key);
     return keys;
   };
 
   // Retrieve the values of an object's properties.
   _.values = function(obj) {
-    return _.map(obj, _.identity);
+    var values = [];
+    for (var key in obj) if (_.has(obj, key)) values.push(obj[key]);
+    return values;
+  };
+
+  // Convert an object into a list of `[key, value]` pairs.
+  _.pairs = function(obj) {
+    var pairs = [];
+    for (var key in obj) if (_.has(obj, key)) pairs.push([key, obj[key]]);
+    return pairs;
+  };
+
+  // Invert the keys and values of an object. The values must be serializable.
+  _.invert = function(obj) {
+    var result = {};
+    for (var key in obj) if (_.has(obj, key)) result[obj[key]] = key;
+    return result;
   };
 
   // Return a sorted list of the function names available on the object.
@@ -667,8 +815,10 @@
   // Extend a given object with all the properties in passed-in object(s).
   _.extend = function(obj) {
     each(slice.call(arguments, 1), function(source) {
-      for (var prop in source) {
-        obj[prop] = source[prop];
+      if (source) {
+        for (var prop in source) {
+          obj[prop] = source[prop];
+        }
       }
     });
     return obj;
@@ -676,18 +826,31 @@
 
   // Return a copy of the object only containing the whitelisted properties.
   _.pick = function(obj) {
-    var result = {};
-    each(_.flatten(slice.call(arguments, 1)), function(key) {
-      if (key in obj) result[key] = obj[key];
+    var copy = {};
+    var keys = concat.apply(ArrayProto, slice.call(arguments, 1));
+    each(keys, function(key) {
+      if (key in obj) copy[key] = obj[key];
     });
-    return result;
+    return copy;
+  };
+
+   // Return a copy of the object without the blacklisted properties.
+  _.omit = function(obj) {
+    var copy = {};
+    var keys = concat.apply(ArrayProto, slice.call(arguments, 1));
+    for (var key in obj) {
+      if (!_.contains(keys, key)) copy[key] = obj[key];
+    }
+    return copy;
   };
 
   // Fill in a given object with default properties.
   _.defaults = function(obj) {
     each(slice.call(arguments, 1), function(source) {
-      for (var prop in source) {
-        if (obj[prop] == null) obj[prop] = source[prop];
+      if (source) {
+        for (var prop in source) {
+          if (obj[prop] === void 0) obj[prop] = source[prop];
+        }
       }
     });
     return obj;
@@ -707,19 +870,16 @@
     return obj;
   };
 
-  // Internal recursive comparison function.
-  function eq(a, b, stack) {
+  // Internal recursive comparison function for `isEqual`.
+  var eq = function(a, b, aStack, bStack) {
     // Identical objects are equal. `0 === -0`, but they aren't identical.
-    // See the Harmony `egal` proposal: http://wiki.ecmascript.org/doku.php?id=harmony:egal.
+    // See the [Harmony `egal` proposal](http://wiki.ecmascript.org/doku.php?id=harmony:egal).
     if (a === b) return a !== 0 || 1 / a == 1 / b;
     // A strict comparison is necessary because `null == undefined`.
     if (a == null || b == null) return a === b;
     // Unwrap any wrapped objects.
-    if (a._chain) a = a._wrapped;
-    if (b._chain) b = b._wrapped;
-    // Invoke a custom `isEqual` method if one is provided.
-    if (a.isEqual && _.isFunction(a.isEqual)) return a.isEqual(b);
-    if (b.isEqual && _.isFunction(b.isEqual)) return b.isEqual(a);
+    if (a instanceof _) a = a._wrapped;
+    if (b instanceof _) b = b._wrapped;
     // Compare `[[Class]]` names.
     var className = toString.call(a);
     if (className != toString.call(b)) return false;
@@ -749,14 +909,22 @@
     if (typeof a != 'object' || typeof b != 'object') return false;
     // Assume equality for cyclic structures. The algorithm for detecting cyclic
     // structures is adapted from ES 5.1 section 15.12.3, abstract operation `JO`.
-    var length = stack.length;
+    var length = aStack.length;
     while (length--) {
       // Linear search. Performance is inversely proportional to the number of
       // unique nested structures.
-      if (stack[length] == a) return true;
+      if (aStack[length] == a) return bStack[length] == b;
+    }
+    // Objects with different constructors are not equivalent, but `Object`s
+    // from different frames are.
+    var aCtor = a.constructor, bCtor = b.constructor;
+    if (aCtor !== bCtor && !(_.isFunction(aCtor) && (aCtor instanceof aCtor) &&
+                             _.isFunction(bCtor) && (bCtor instanceof bCtor))) {
+      return false;
     }
     // Add the first object to the stack of traversed objects.
-    stack.push(a);
+    aStack.push(a);
+    bStack.push(b);
     var size = 0, result = true;
     // Recursively compare objects and arrays.
     if (className == '[object Array]') {
@@ -766,20 +934,17 @@
       if (result) {
         // Deep compare the contents, ignoring non-numeric properties.
         while (size--) {
-          // Ensure commutative equality for sparse arrays.
-          if (!(result = size in a == size in b && eq(a[size], b[size], stack))) break;
+          if (!(result = eq(a[size], b[size], aStack, bStack))) break;
         }
       }
     } else {
-      // Objects with different constructors are not equivalent.
-      if ('constructor' in a != 'constructor' in b || a.constructor != b.constructor) return false;
       // Deep compare objects.
       for (var key in a) {
         if (_.has(a, key)) {
           // Count the expected number of properties.
           size++;
           // Deep compare each member.
-          if (!(result = _.has(b, key) && eq(a[key], b[key], stack))) break;
+          if (!(result = _.has(b, key) && eq(a[key], b[key], aStack, bStack))) break;
         }
       }
       // Ensure that both objects contain the same number of properties.
@@ -791,13 +956,14 @@
       }
     }
     // Remove the first object from the stack of traversed objects.
-    stack.pop();
+    aStack.pop();
+    bStack.pop();
     return result;
-  }
+  };
 
   // Perform a deep comparison to check if two objects are equal.
   _.isEqual = function(a, b) {
-    return eq(a, b, []);
+    return eq(a, b, [], []);
   };
 
   // Is a given array, string, or object empty?
@@ -811,7 +977,7 @@
 
   // Is a given value a DOM element?
   _.isElement = function(obj) {
-    return !!(obj && obj.nodeType == 1);
+    return !!(obj && obj.nodeType === 1);
   };
 
   // Is a given value an array?
@@ -825,55 +991,41 @@
     return obj === Object(obj);
   };
 
-  // Is a given variable an arguments object?
-  _.isArguments = function(obj) {
-    return toString.call(obj) == '[object Arguments]';
-  };
+  // Add some isType methods: isArguments, isFunction, isString, isNumber, isDate, isRegExp.
+  each(['Arguments', 'Function', 'String', 'Number', 'Date', 'RegExp'], function(name) {
+    _['is' + name] = function(obj) {
+      return toString.call(obj) == '[object ' + name + ']';
+    };
+  });
+
+  // Define a fallback version of the method in browsers (ahem, IE), where
+  // there isn't any inspectable "Arguments" type.
   if (!_.isArguments(arguments)) {
     _.isArguments = function(obj) {
       return !!(obj && _.has(obj, 'callee'));
     };
   }
 
-  // Is a given value a function?
-  _.isFunction = function(obj) {
-    return toString.call(obj) == '[object Function]';
-  };
-
-  // Is a given value a string?
-  _.isString = function(obj) {
-    return toString.call(obj) == '[object String]';
-  };
-
-  // Is a given value a number?
-  _.isNumber = function(obj) {
-    return toString.call(obj) == '[object Number]';
-  };
+  // Optimize `isFunction` if appropriate.
+  if (typeof (/./) !== 'function') {
+    _.isFunction = function(obj) {
+      return typeof obj === 'function';
+    };
+  }
 
   // Is a given object a finite number?
   _.isFinite = function(obj) {
-    return _.isNumber(obj) && isFinite(obj);
+    return isFinite(obj) && !isNaN(parseFloat(obj));
   };
 
-  // Is the given value `NaN`?
+  // Is the given value `NaN`? (NaN is the only number which does not equal itself).
   _.isNaN = function(obj) {
-    // `NaN` is the only value for which `===` is not reflexive.
-    return obj !== obj;
+    return _.isNumber(obj) && obj != +obj;
   };
 
   // Is a given value a boolean?
   _.isBoolean = function(obj) {
     return obj === true || obj === false || toString.call(obj) == '[object Boolean]';
-  };
-
-  // Is a given value a date?
-  _.isDate = function(obj) {
-    return toString.call(obj) == '[object Date]';
-  };
-
-  // Is the given value a regular expression?
-  _.isRegExp = function(obj) {
-    return toString.call(obj) == '[object RegExp]';
   };
 
   // Is a given value equal to null?
@@ -886,7 +1038,8 @@
     return obj === void 0;
   };
 
-  // Has own property?
+  // Shortcut function for checking if an object has a given property directly
+  // on itself (in other words, not on a prototype).
   _.has = function(obj, key) {
     return hasOwnProperty.call(obj, key);
   };
@@ -907,28 +1060,67 @@
   };
 
   // Run a function **n** times.
-  _.times = function (n, iterator, context) {
-    for (var i = 0; i < n; i++) iterator.call(context, i);
+  _.times = function(n, iterator, context) {
+    var accum = Array(Math.max(0, n));
+    for (var i = 0; i < n; i++) accum[i] = iterator.call(context, i);
+    return accum;
   };
 
-  // Escape a string for HTML interpolation.
-  _.escape = function(string) {
-    return (''+string).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;').replace(/\//g,'&#x2F;');
+  // Return a random integer between min and max (inclusive).
+  _.random = function(min, max) {
+    if (max == null) {
+      max = min;
+      min = 0;
+    }
+    return min + Math.floor(Math.random() * (max - min + 1));
   };
 
-  // If the value of the named property is a function then invoke it;
-  // otherwise, return it.
+  // List of HTML entities for escaping.
+  var entityMap = {
+    escape: {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#x27;',
+      '/': '&#x2F;'
+    }
+  };
+  entityMap.unescape = _.invert(entityMap.escape);
+
+  // Regexes containing the keys and values listed immediately above.
+  var entityRegexes = {
+    escape:   new RegExp('[' + _.keys(entityMap.escape).join('') + ']', 'g'),
+    unescape: new RegExp('(' + _.keys(entityMap.unescape).join('|') + ')', 'g')
+  };
+
+  // Functions for escaping and unescaping strings to/from HTML interpolation.
+  _.each(['escape', 'unescape'], function(method) {
+    _[method] = function(string) {
+      if (string == null) return '';
+      return ('' + string).replace(entityRegexes[method], function(match) {
+        return entityMap[method][match];
+      });
+    };
+  });
+
+  // If the value of the named `property` is a function then invoke it with the
+  // `object` as context; otherwise, return it.
   _.result = function(object, property) {
-    if (object == null) return null;
+    if (object == null) return void 0;
     var value = object[property];
     return _.isFunction(value) ? value.call(object) : value;
   };
 
-  // Add your own custom functions to the Underscore object, ensuring that
-  // they're correctly added to the OOP wrapper as well.
+  // Add your own custom functions to the Underscore object.
   _.mixin = function(obj) {
     each(_.functions(obj), function(name){
-      addToWrapper(name, _[name] = obj[name]);
+      var func = _[name] = obj[name];
+      _.prototype[name] = function() {
+        var args = [this._wrapped];
+        push.apply(args, arguments);
+        return result.call(this, func.apply(_, args));
+      };
     });
   };
 
@@ -936,7 +1128,7 @@
   // Useful for temporary DOM ids.
   var idCounter = 0;
   _.uniqueId = function(prefix) {
-    var id = idCounter++;
+    var id = ++idCounter + '';
     return prefix ? prefix + id : id;
   };
 
@@ -951,72 +1143,78 @@
   // When customizing `templateSettings`, if you don't want to define an
   // interpolation, evaluation or escaping regex, we need one that is
   // guaranteed not to match.
-  var noMatch = /.^/;
+  var noMatch = /(.)^/;
 
   // Certain characters need to be escaped so that they can be put into a
   // string literal.
   var escapes = {
-    '\\': '\\',
-    "'": "'",
-    'r': '\r',
-    'n': '\n',
-    't': '\t',
-    'u2028': '\u2028',
-    'u2029': '\u2029'
+    "'":      "'",
+    '\\':     '\\',
+    '\r':     'r',
+    '\n':     'n',
+    '\t':     't',
+    '\u2028': 'u2028',
+    '\u2029': 'u2029'
   };
 
-  for (var p in escapes) escapes[escapes[p]] = p;
   var escaper = /\\|'|\r|\n|\t|\u2028|\u2029/g;
-  var unescaper = /\\(\\|'|r|n|t|u2028|u2029)/g;
-
-  // Within an interpolation, evaluation, or escaping, remove HTML escaping
-  // that had been previously added.
-  var unescape = function(code) {
-    return code.replace(unescaper, function(match, escape) {
-      return escapes[escape];
-    });
-  };
 
   // JavaScript micro-templating, similar to John Resig's implementation.
   // Underscore templating handles arbitrary delimiters, preserves whitespace,
   // and correctly escapes quotes within interpolated code.
   _.template = function(text, data, settings) {
-    settings = _.defaults(settings || {}, _.templateSettings);
+    var render;
+    settings = _.defaults({}, settings, _.templateSettings);
 
-    // Compile the template source, taking care to escape characters that
-    // cannot be included in a string literal and then unescape them in code
-    // blocks.
-    var source = "__p+='" + text
-      .replace(escaper, function(match) {
-        return '\\' + escapes[match];
-      })
-      .replace(settings.escape || noMatch, function(match, code) {
-        return "'+\n_.escape(" + unescape(code) + ")+\n'";
-      })
-      .replace(settings.interpolate || noMatch, function(match, code) {
-        return "'+\n(" + unescape(code) + ")+\n'";
-      })
-      .replace(settings.evaluate || noMatch, function(match, code) {
-        return "';\n" + unescape(code) + "\n;__p+='";
-      }) + "';\n";
+    // Combine delimiters into one regular expression via alternation.
+    var matcher = new RegExp([
+      (settings.escape || noMatch).source,
+      (settings.interpolate || noMatch).source,
+      (settings.evaluate || noMatch).source
+    ].join('|') + '|$', 'g');
+
+    // Compile the template source, escaping string literals appropriately.
+    var index = 0;
+    var source = "__p+='";
+    text.replace(matcher, function(match, escape, interpolate, evaluate, offset) {
+      source += text.slice(index, offset)
+        .replace(escaper, function(match) { return '\\' + escapes[match]; });
+
+      if (escape) {
+        source += "'+\n((__t=(" + escape + "))==null?'':_.escape(__t))+\n'";
+      }
+      if (interpolate) {
+        source += "'+\n((__t=(" + interpolate + "))==null?'':__t)+\n'";
+      }
+      if (evaluate) {
+        source += "';\n" + evaluate + "\n__p+='";
+      }
+      index = offset + match.length;
+      return match;
+    });
+    source += "';\n";
 
     // If a variable is not specified, place data values in local scope.
     if (!settings.variable) source = 'with(obj||{}){\n' + source + '}\n';
 
-    source = "var __p='';" +
-      "var print=function(){__p+=Array.prototype.join.call(arguments, '')};\n" +
+    source = "var __t,__p='',__j=Array.prototype.join," +
+      "print=function(){__p+=__j.call(arguments,'');};\n" +
       source + "return __p;\n";
 
-    var render = new Function(settings.variable || 'obj', '_', source);
+    try {
+      render = new Function(settings.variable || 'obj', '_', source);
+    } catch (e) {
+      e.source = source;
+      throw e;
+    }
+
     if (data) return render(data, _);
     var template = function(data) {
       return render.call(this, data, _);
     };
 
-    // Provide the compiled function source as a convenience for build time
-    // precompilation.
-    template.source = 'function(' + (settings.variable || 'obj') + '){\n' +
-      source + '}';
+    // Provide the compiled function source as a convenience for precompilation.
+    template.source = 'function(' + (settings.variable || 'obj') + '){\n' + source + '}';
 
     return template;
   };
@@ -1026,29 +1224,15 @@
     return _(obj).chain();
   };
 
-  // The OOP Wrapper
+  // OOP
   // ---------------
-
   // If Underscore is called as a function, it returns a wrapped object that
   // can be used OO-style. This wrapper holds altered versions of all the
   // underscore functions. Wrapped objects may be chained.
-  var wrapper = function(obj) { this._wrapped = obj; };
-
-  // Expose `wrapper.prototype` as `_.prototype`
-  _.prototype = wrapper.prototype;
 
   // Helper function to continue chaining intermediate results.
-  var result = function(obj, chain) {
-    return chain ? _(obj).chain() : obj;
-  };
-
-  // A method to easily add functions to the OOP wrapper.
-  var addToWrapper = function(name, func) {
-    wrapper.prototype[name] = function() {
-      var args = slice.call(arguments);
-      unshift.call(args, this._wrapped);
-      return result(func.apply(_, args), this._chain);
-    };
+  var result = function(obj) {
+    return this._chain ? _(obj).chain() : obj;
   };
 
   // Add all of the Underscore functions to the wrapper object.
@@ -1057,35 +1241,44 @@
   // Add all mutator Array functions to the wrapper.
   each(['pop', 'push', 'reverse', 'shift', 'sort', 'splice', 'unshift'], function(name) {
     var method = ArrayProto[name];
-    wrapper.prototype[name] = function() {
-      var wrapped = this._wrapped;
-      method.apply(wrapped, arguments);
-      var length = wrapped.length;
-      if ((name == 'shift' || name == 'splice') && length === 0) delete wrapped[0];
-      return result(wrapped, this._chain);
+    _.prototype[name] = function() {
+      var obj = this._wrapped;
+      method.apply(obj, arguments);
+      if ((name == 'shift' || name == 'splice') && obj.length === 0) delete obj[0];
+      return result.call(this, obj);
     };
   });
 
   // Add all accessor Array functions to the wrapper.
   each(['concat', 'join', 'slice'], function(name) {
     var method = ArrayProto[name];
-    wrapper.prototype[name] = function() {
-      return result(method.apply(this._wrapped, arguments), this._chain);
+    _.prototype[name] = function() {
+      return result.call(this, method.apply(this._wrapped, arguments));
     };
   });
 
-  // Start chaining a wrapped Underscore object.
-  wrapper.prototype.chain = function() {
-    this._chain = true;
-    return this;
-  };
+  _.extend(_.prototype, {
 
-  // Extracts the result from a wrapped and chained object.
-  wrapper.prototype.value = function() {
-    return this._wrapped;
-  };
+    // Start chaining a wrapped Underscore object.
+    chain: function() {
+      this._chain = true;
+      return this;
+    },
+
+    // Extracts the result from a wrapped and chained object.
+    value: function() {
+      return this._wrapped;
+    }
+
+  });
 
 }).call(this);
+/**
+ * The Events module pulled from [Backbone.js](http://backbonejs.org/)
+ * Stripped and modified to work with node.js and optimize types of calls
+ * for animation based events.
+ */
+
 var Backbone = Backbone || {};
 
 (function() {
@@ -1099,24 +1292,10 @@ var Backbone = Backbone || {};
   // Regular expression used to split event strings.
   var eventSplitter = /\s+/;
 
-  // Implement fancy features of the Events API such as multiple event
-  // names `"change blur"` and jQuery-style event maps `{change: action}`
-  // in terms of the existing API.
-  var eventsApi = function(obj, action, name, rest) {
-    if (!name) return true;
-    if (typeof name === 'object') {
-      for (var key in name) {
-        obj[action].apply(obj, [key, name[key]].concat(rest));
-      }
-    } else if (eventSplitter.test(name)) {
-      var names = name.split(eventSplitter);
-      for (var i = 0, l = names.length; i < l; i++) {
-        obj[action].apply(obj, [names[i]].concat(rest));
-      }
-    } else {
-      return true;
-    }
-  };
+  /**
+   * Events API deprecated because of additional calls and checks
+   * multiple times a frame tick in two.js
+   */
 
   // Optimized internal dispatch function for triggering events. Tries to
   // keep the usual cases speedy (most Backbone events have 3 arguments).
@@ -1141,7 +1320,7 @@ var Backbone = Backbone || {};
     // to a `callback` function. Passing `"all"` will bind the callback to
     // all events fired.
     on: function(name, callback, context) {
-      if (!(eventsApi(this, 'on', name, [callback, context]) && callback)) return this;
+      // if (!(eventsApi(this, 'on', name, [callback, context]) && callback)) return this;
       this._events || (this._events = {});
       var list = this._events[name] || (this._events[name] = []);
       list.push({callback: callback, context: context, ctx: context || this});
@@ -1151,7 +1330,7 @@ var Backbone = Backbone || {};
     // Bind events to only be triggered a single time. After the first time
     // the callback is invoked, it will be removed.
     once: function(name, callback, context) {
-      if (!(eventsApi(this, 'once', name, [callback, context]) && callback)) return this;
+      // if (!(eventsApi(this, 'once', name, [callback, context]) && callback)) return this;
       var self = this;
       var once = _.once(function() {
         self.off(name, once);
@@ -1168,7 +1347,7 @@ var Backbone = Backbone || {};
     // callbacks for all events.
     off: function(name, callback, context) {
       var list, ev, events, names, i, l, j, k;
-      if (!this._events || !eventsApi(this, 'off', name, [callback, context])) return this;
+      if (!this._events/** || !eventsApi(this, 'off', name, [callback, context])**/) return this;
       if (!name && !callback && !context) {
         this._events = {};
         return this;
@@ -1202,7 +1381,7 @@ var Backbone = Backbone || {};
     trigger: function(name) {
       if (!this._events) return this;
       var args = slice.call(arguments, 1);
-      if (!eventsApi(this, 'trigger', name, args)) return this;
+      // if (!eventsApi(this, 'trigger', name, args)) return this;
       var events = this._events[name];
       var allEvents = this._events.all;
       if (events) triggerEvents(this, events, args);
@@ -1242,31 +1421,55 @@ var Backbone = Backbone || {};
   Events.bind   = Events.on;
   Events.unbind = Events.off;
 
-})();
-// http://paulirish.com/2011/requestanimationframe-for-smart-animating/
-
-(function() {
-  var lastTime = 0;
-  var vendors = ['ms', 'moz', 'webkit', 'o'];
-  for(var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
-    window.requestAnimationFrame = window[vendors[x]+'RequestAnimationFrame'];
-    window.cancelAnimationFrame = 
-      window[vendors[x]+'CancelAnimationFrame'] || window[vendors[x]+'CancelRequestAnimationFrame'];
+  if (typeof exports !== 'undefined') {
+    if (typeof module !== 'undefined' && module.exports) {
+      exports = module.exports = Events;
+    }
+    exports.Backbone = exports.Backbone || Backbone;
   }
 
-  if (!window.requestAnimationFrame)
-    window.requestAnimationFrame = function(callback, element) {
-      var currTime = new Date().getTime();
-      var timeToCall = Math.max(0, 16 - (currTime - lastTime));
-      var id = window.setTimeout(function() { callback(currTime + timeToCall); }, timeToCall);
-      lastTime = currTime + timeToCall;
-      return id;
-    };
+})();
+/**
+ * http://paulirish.com/2011/requestanimationframe-for-smart-animating/
+ * And modified to work with node.js
+ */
 
-  if (!window.cancelAnimationFrame)
-    window.cancelAnimationFrame = function(id) {
+(function() {
+
+  var root = this;
+  var lastTime = 0;
+  var vendors = ['ms', 'moz', 'webkit', 'o'];
+
+  if (typeof exports !== 'undefined') {
+    if (typeof module !== 'undefined' && module.exports) {
+      exports = module.exports = raf;
+    }
+    exports.requestAnimationFrame = raf;
+    return;
+  }
+
+  for(var x = 0; x < vendors.length && !root.requestAnimationFrame; ++x) {
+    root.requestAnimationFrame = root[vendors[x]+'RequestAnimationFrame'];
+    root.cancelAnimationFrame = 
+      root[vendors[x]+'CancelAnimationFrame'] || root[vendors[x]+'CancelRequestAnimationFrame'];
+  }
+
+  if (!root.requestAnimationFrame)
+    root.requestAnimationFrame = raf;
+
+  if (!root.cancelAnimationFrame)
+    root.cancelAnimationFrame = function(id) {
       clearTimeout(id);
     };
+
+  function raf(callback, element) {
+    var currTime = new Date().getTime();
+    var timeToCall = Math.max(0, 16 - (currTime - lastTime));
+    var id = root.setTimeout(function() { callback(currTime + timeToCall); }, timeToCall);
+    lastTime = currTime + timeToCall;
+    return id;
+  }
+
 }());
 (function() {
 
@@ -1286,7 +1489,15 @@ var Backbone = Backbone || {};
     PI = Math.PI,
     TWO_PI = PI * 2,
     HALF_PI = PI / 2,
-    pow = Math.pow;
+    pow = Math.pow,
+    min = Math.min,
+    max = Math.max;
+
+  /**
+   * Localized variables
+   */
+
+  var count = 0;
 
   /**
    * Cross browser dom events.
@@ -1330,7 +1541,19 @@ var Backbone = Backbone || {};
       autostart: false
     });
 
-    this.type = params.type;
+    _.each(params, function(v, k) {
+      if (k === 'fullscreen' || k === 'width' || k === 'height'
+        || k === 'autostart') {
+        return;
+      }
+      this[k] = v;
+    }, this);
+
+    // Specified domElement overrides type declaration.
+    if (_.isElement(params.domElement)) {
+      this.type = Two.Types[params.domElement.tagName.toLowerCase()];
+    }
+
     this.renderer = new Two[this.type](this);
     Two.Utils.setPlaying.call(this, params.autostart);
     this.frameCount = 0;
@@ -1356,20 +1579,19 @@ var Backbone = Backbone || {};
         bottom: 0,
         position: 'fixed'
       });
-      dom.bind(window, 'resize', fitted);
+      dom.bind(root, 'resize', fitted);
       fitted();
 
 
-    } else {
+    } else if (!_.isElement(params.domElement)) {
 
-      this.renderer.setSize(params.width, params.height);
+      this.renderer.setSize(params.width, params.height, this.ratio);
       this.width = params.width;
       this.height = params.height;
 
     }
 
-    this.scene = new Two.Group();
-    this.renderer.add(this.scene);
+    this.scene = this.renderer.scene;
 
     Two.Instances.push(this);
 
@@ -1389,7 +1611,9 @@ var Backbone = Backbone || {};
       canvas: 'CanvasRenderer'
     },
 
-    Version: 'v0.2.1',
+    Version: 'v0.4.0',
+
+    Identifier: 'two-',
 
     Properties: {
       hierarchy: 'hierarchy',
@@ -1402,7 +1626,16 @@ var Backbone = Backbone || {};
       update: 'update',
       render: 'render',
       resize: 'resize',
-      change: 'change'
+      change: 'change',
+      remove: 'remove',
+      insert: 'insert'
+    },
+
+    Commands: {
+      move: 'M',
+      line: 'L',
+      curve: 'C',
+      close: 'Z'
     },
 
     Resolution: 8,
@@ -1414,7 +1647,46 @@ var Backbone = Backbone || {};
       return this;
     },
 
+    uniqueId: function() {
+      var id = count;
+      count++;
+      return id;
+    },
+
     Utils: {
+
+      /**
+       * Release an arbitrary class' events from the two.js corpus and recurse
+       * through its children and or vertices.
+       */
+      release: function(obj) {
+
+        if (!_.isObject(obj)) {
+          return;
+        }
+
+        if (_.isFunction(obj.unbind)) {
+          obj.unbind();
+        }
+
+        if (obj.vertices) {
+          if (_.isFunction(obj.vertices.unbind)) {
+            obj.vertices.unbind();
+          }
+          _.each(obj.vertices, function(v) {
+            if (_.isFunction(v.unbind)) {
+              v.unbind();
+            }
+          });
+        }
+
+        if (obj.children) {
+          _.each(obj.children, function(obj) {
+            Two.Utils.release(obj);
+          });
+        }
+
+      },
 
       Curve: {
 
@@ -1433,40 +1705,65 @@ var Backbone = Backbone || {};
       },
 
       /**
+       * Account for high dpi rendering.
+       * http://www.html5rocks.com/en/tutorials/canvas/hidpi/
+       */
+
+      devicePixelRatio: root.devicePixelRatio || 1,
+
+      getBackingStoreRatio: function(ctx) {
+        return ctx.webkitBackingStorePixelRatio ||
+          ctx.mozBackingStorePixelRatio ||
+          ctx.msBackingStorePixelRatio ||
+          ctx.oBackingStorePixelRatio ||
+          ctx.backingStorePixelRatio || 1;
+      },
+
+      getRatio: function(ctx) {
+        return Two.Utils.devicePixelRatio / getBackingStoreRatio(ctx);
+      },
+
+      /**
        * Properly defer play calling until after all objects
        * have been updated with their newest styles.
        */
       setPlaying: function(b) {
 
-        _.defer(_.bind(function() {
-          this.playing = !!b;
-        }, this));
+        this.playing = !!b;
+        return this;
 
       },
 
       /**
        * Return the computed matrix of a nested object.
+       * TODO: Optimize traversal.
        */
-      getComputedMatrix: function(object) {
+      getComputedMatrix: function(object, matrix) {
 
-        var matrix = new Two.Matrix();
+        var matrices = [];
+        var matrix = (matrix && matrix.identity()) || new Two.Matrix();
         var parent = object;
 
         while (parent && parent._matrix) {
-          var e = parent._matrix.elements;
-          matrix.multiply(
-            e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8], e[9]);
+          matrices.push(parent._matrix);
           parent = parent.parent;
         }
+
+        matrices.reverse();
+
+        _.each(matrices, function(m) {
+
+          var e = m.elements;
+          matrix.multiply(
+            e[0], e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8], e[9]);
+
+        });
 
         return matrix;
 
       },
 
       applySvgAttributes: function(node, elem) {
-
-        elem.cap = 'butt';
-        elem.join = 'bevel';
 
         _.each(node.attributes, function(v, k) {
 
@@ -1476,6 +1773,7 @@ var Backbone = Backbone || {};
 
             case 'transform':
 
+              // TODO:
               // Need to figure out how to decompose matrix into
               // translation, rotation, scale.
 
@@ -1504,6 +1802,7 @@ var Backbone = Backbone || {};
               break;
             case 'stroke-opacity':
             case 'fill-opacity':
+            case 'opacity':
               elem.opacity = v.nodeValue;
               break;
             case 'fill':
@@ -1511,6 +1810,9 @@ var Backbone = Backbone || {};
               break;
             case 'stroke':
               elem.stroke = v.nodeValue;
+              break;
+            case 'id':
+              elem.id = v.nodeValue;
               break;
           }
 
@@ -1537,14 +1839,13 @@ var Backbone = Backbone || {};
 
           _.each(node.childNodes, function(n) {
 
-            if (!n.localName) {
-              return;
-            }
+            var tag = n.nodeName;
+            if (!tag) return;
+            
+            var tagName = tag.replace(/svg\:/ig, '').toLowerCase();
 
-            var tag = n.localName.toLowerCase();
-
-            if ((tag in Two.Utils.read)) {
-              var o = Two.Utils.read[tag].call(this, n);
+            if (tagName in Two.Utils.read) {
+              var o = Two.Utils.read[tagName].call(this, n);
               group.add(o);
             }
 
@@ -1556,13 +1857,15 @@ var Backbone = Backbone || {};
 
         polygon: function(node, open) {
 
-          var points = node.points;
-          var verts = _.map(_.range(points.numberOfItems), function(i) {
-            var p = points.getItem(i);
-            return new Two.Vector(p.x, p.y);
+          var points = node.getAttribute('points');
+
+          var verts = [];
+          points.replace(/([\d\.?]+),([\d\.?]+)/g, function(match, p1, p2) {
+            verts.push(new Two.Anchor(parseFloat(p1), parseFloat(p2)));
           });
 
           var poly = new Two.Polygon(verts, !open).noStroke();
+          poly.fill = 'black';
 
           return Two.Utils.applySvgAttributes(node, poly);
 
@@ -1574,165 +1877,215 @@ var Backbone = Backbone || {};
 
         path: function(node) {
 
-          var data = node.getAttribute('d');
-          // Retrieve an array of all commands.
-          var paths = _.flatten(_.map(_.compact(data.split(/M/g)), function(str) {
-            var rels = _.map(_.compact(str.split(/m/g)), function(str, i) {
-              if (i <= 0) {
-                return str;
-              }
-              return 'm' + str;
+          var path = node.getAttribute('d');
+
+          // Create a Two.Polygon from the paths.
+          var coord, control;
+          var coords, relative = false;
+          var closed = false;
+          var commands = path.match(/[a-df-z][^a-df-z]*/ig);
+          var last = commands.length - 1;
+
+          var points = _.flatten(_.map(commands, function(command, i) {
+
+            var result, x, y;
+            var type = command[0];
+            var lower = type.toLowerCase();
+
+            coords = command.slice(1).trim();
+            coords = coords.replace(/(-?\d+(?:\.\d*)?)[eE]([+\-]?\d+)/g, function(match, n1, n2) {
+              return parseFloat(n1) * Math.pow(10, n2);
             });
-            rels[0] = 'M' + rels[0];
-            return rels;
-          }));
+            coords = coords.split(/[\s,]+|(?=\s?[+\-])/);
+            relative = type === lower;
 
-          // Create Two.Polygons from the paths.
-          var length = paths.length;
-          var coord = new Two.Vector();
-          var control = new Two.Vector();
-          var polys = _.map(paths, function(path) {
+            var x1, y1, x2, y2, x3, y3, x4, y4, reflection;
 
-            var coords, relative = false;
-            var closed = false;
+            switch (lower) {
 
-            var points = _.flatten(_.map(path.match(/[a-z][^a-z]*/ig), function(command) {
-
-              var result, x, y;
-              var type = command[0];
-              var lower = type.toLowerCase();
-
-              coords = command.slice(1).trim().split(/[\s,]+|(?=[+\-])/);
-              relative = type === lower;
-
-              var x1, y1, x2, y2, x3, y3, x4, y4, reflection;
-
-              switch(lower) {
-
-                case 'z':
+              case 'z':
+                if (i >= last) {
                   closed = true;
-                  break;
+                } else {
+                  x = coord.x;
+                  y = coord.y;
+                  result = new Two.Anchor(
+                    x, y,
+                    undefined, undefined,
+                    undefined, undefined,
+                    Two.Commands.close
+                  );
+                }
+                break;
 
-                case 'm':
-                case 'l':
+              case 'm':
+              case 'l':
 
-                  x = parseFloat(coords[0]);
-                  y = parseFloat(coords[1]);
+                x = parseFloat(coords[0]);
+                y = parseFloat(coords[1]);
 
-                  result = new Two.Vector(x, y);
+                result = new Two.Anchor(
+                  x, y,
+                  undefined, undefined,
+                  undefined, undefined,
+                  lower === 'm' ? Two.Commands.move : Two.Commands.line
+                );
 
-                  if (relative) {
-                    result.addSelf(coord);
-                  }
+                if (relative) {
+                  result.addSelf(coord);
+                }
 
-                  coord.copy(result);
-                  break;
+                // result.controls.left.copy(result);
+                // result.controls.right.copy(result);
 
-                case 'h':
-                case 'v':
+                coord = result;
+                break;
 
-                  var a = lower === 'h' ? 'x' : 'y';
-                  var b = a === 'x' ? 'y' : 'x';
+              case 'h':
+              case 'v':
 
-                  result = new Two.Vector();
-                  result[a] = parseFloat(coords[0]);
-                  result[b] = coord[b];
+                var a = lower === 'h' ? 'x' : 'y';
+                var b = a === 'x' ? 'y' : 'x';
 
-                  if (relative) {
-                    result[a] += coord[a];
-                  }
+                result = new Two.Anchor(
+                  undefined, undefined,
+                  undefined, undefined,
+                  undefined, undefined,
+                  Two.Commands.line
+                );
+                result[a] = parseFloat(coords[0]);
+                result[b] = coord[b];
 
-                  coord.copy(result);
-                  break;
+                if (relative) {
+                  result[a] += coord[a];
+                }
 
-                case 's':
-                case 'c':
+                // result.controls.left.copy(result);
+                // result.controls.right.copy(result);
 
-                  x1 = coord.x, y1 = coord.y;
+                coord = result;
+                break;
 
-                  if (lower === 'c') {
+              case 's':
+              case 'c':
 
-                    x2 = parseFloat(coords[0]), y2 = parseFloat(coords[1]);
-                    x3 = parseFloat(coords[2]), y3 = parseFloat(coords[3]);
-                    x4 = parseFloat(coords[4]), y4 = parseFloat(coords[5]);
+                x1 = coord.x, y1 = coord.y;
+                if (!control) {
+                  control = new Two.Vector().copy(coord);
+                }
 
-                  } else {
+                if (lower === 'c') {
 
-                    // Calculate reflection control point for proper x2, y2
-                    // inclusion.
+                  x2 = parseFloat(coords[0]), y2 = parseFloat(coords[1]);
+                  x3 = parseFloat(coords[2]), y3 = parseFloat(coords[3]);
+                  x4 = parseFloat(coords[4]), y4 = parseFloat(coords[5]);
 
-                    reflection = new Two.Vector().copy(coord).subSelf(control);
+                } else {
 
-                    x2 = parseFloat(reflection.x), y2 = parseFloat(reflection.y);
-                    x3 = parseFloat(coords[0]), y3 = parseFloat(coords[1]);
-                    x4 = parseFloat(coords[2]), y4 = parseFloat(coords[3]);
+                  // Calculate reflection control point for proper x2, y2
+                  // inclusion.
 
-                  }
+                  reflection = Two.Utils.getReflection(coord, control, relative);
 
-                  if (relative) {
-                    x2 += x1, y2 += y1;
-                    x3 += x1, y3 += y1;
-                    x4 += x1, y4 += y1;
-                  }
+                  x2 = reflection.x, y2 = reflection.y;
+                  x3 = parseFloat(coords[0]), y3 = parseFloat(coords[1]);
+                  x4 = parseFloat(coords[2]), y4 = parseFloat(coords[3]);
 
-                  result = Two.Utils.subdivide(x1, y1, x2, y2, x3, y3, x4, y4);
-                  coord.set(x4, y4);
-                  control.set(x3, y3);
-                  break;
+                }
 
-                case 't':
-                case 'q':
+                if (relative) {
+                  x2 += x1, y2 += y1;
+                  x3 += x1, y3 += y1;
+                  x4 += x1, y4 += y1;
+                }
 
-                  x1 = coord.x, y1 = coord.y;
-                  if (control.isZero()) {
-                    x2 = x1, y2 = y1;
-                  } else {
-                    x2 = control.x, y1 = control.y;
-                  }
+                if (!_.isObject(coord.controls)) {
+                  Two.Anchor.AppendCurveProperties(coord);
+                }
 
-                  if (lower === 'q') {
+                coord.controls.right.set(x2 - coord.x, y2 - coord.y);
+                result = new Two.Anchor(
+                  x4, y4,
+                  x3 - x4, y3 - y4,
+                  undefined, undefined,
+                  Two.Commands.curve
+                );
 
-                    x3 = parseFloat(coords[0]), y3 = parseFloat(coords[1]);
-                    x4 = parseFloat(coords[1]), y4 = parseFloat(coords[2]);
+                coord = result;
+                control = result.controls.left;
 
-                  } else {
+                break;
 
-                    reflection = new Two.Vector().copy(coord).subSelf(control);
+              case 't':
+              case 'q':
 
-                    x3 = parseFloat(reflection.x), y3 = parseFloat(reflection.y);
-                    x4 = parseFloat(coords[0]), y4 = parseFloat(coords[1]);
+                x1 = coord.x, y1 = coord.y;
 
-                  }
+                if (!control) {
+                  control = new Two.Vector().copy(coord);
+                }
 
-                  if (relative) {
-                    x2 += x1, y2 += y1;
-                    x3 += x1, y3 += y1;
-                    x4 += x1, y4 += y1;
-                  }
+                if (control.isZero()) {
+                  x2 = x1, y2 = y1;
+                } else {
+                  x2 = control.x, y1 = control.y;
+                }
 
-                  result = Two.Utils.subdivide(x1, y1, x2, y2, x3, y3, x4, y4);
-                  coord.set(x4, y4);
-                  control.set(x3, y3);
-                  break;
+                if (lower === 'q') {
 
-                case 'a':
-                  throw new Two.Utils.Error('not yet able to interpret Elliptical Arcs.');
-              }
+                  x3 = parseFloat(coords[0]), y3 = parseFloat(coords[1]);
+                  x4 = parseFloat(coords[1]), y4 = parseFloat(coords[2]);
 
-              return result;
+                } else {
 
-            }));
+                  reflection = Two.Utils.getReflection(coord, control, relative);
 
-            if (_.isUndefined(points[points.length - 1])) {
-              points.pop();
+                  x3 = reflection.x, y3 = reflection.y;
+                  x4 = parseFloat(coords[0]), y4 = parseFloat(coords[1]);
+
+                }
+
+                if (relative) {
+                  x2 += x1, y2 += y1;
+                  x3 += x1, y3 += y1;
+                  x4 += x1, y4 += y1;
+                }
+
+                if (!_.isObject(coord.controls)) {
+                  Two.Anchor.AppendCurveProperties(coord);
+                }
+
+                coord.controls.right.set(x2 - coord.x, y2 - coord.y);
+                result = new Two.Anchor(
+                  x4, y4,
+                  x3 - x4, y3 - y4,
+                  undefined, undefined,
+                  Two.Commands.curve
+                );
+
+                coord = result;
+                control = result.controls.left;
+
+                break;
+
+              case 'a':
+                throw new Two.Utils.Error('not yet able to interpret Elliptical Arcs.');
             }
 
-            var poly = new Two.Polygon(points, closed).noStroke();
-            return Two.Utils.applySvgAttributes(node, poly);
+            return result;
 
-          });
+          }));
 
-          return polys;
+          if (points.length <= 1) {
+            return;
+          }
+
+          points = _.compact(points);
+
+          var poly = new Two.Polygon(points, closed, undefined, true).noStroke();
+          poly.fill = 'black';
+
+          return Two.Utils.applySvgAttributes(node, poly);
 
         },
 
@@ -1748,11 +2101,12 @@ var Backbone = Backbone || {};
             var theta = pct * TWO_PI;
             var x = r * cos(theta);
             var y = r * sin(theta);
-            return new Two.Vector(x, y);
+            return new Two.Anchor(x, y);
           }, this);
 
           var circle = new Two.Polygon(points, true, true).noStroke();
           circle.translation.set(x, y);
+          circle.fill = 'black';
 
           return Two.Utils.applySvgAttributes(node, circle);
 
@@ -1771,11 +2125,12 @@ var Backbone = Backbone || {};
             var theta = pct * TWO_PI;
             var x = width * cos(theta);
             var y = height * sin(theta);
-            return new Two.Vector(x, y);
+            return new Two.Anchor(x, y);
           }, this);
 
           var ellipse = new Two.Polygon(points, true, true).noStroke();
           ellipse.translation.set(x, y);
+          ellipse.fill = 'black';
 
           return Two.Utils.applySvgAttributes(node, ellipse);
 
@@ -1792,14 +2147,15 @@ var Backbone = Backbone || {};
           var h2 = height / 2;
 
           var points = [
-            new Two.Vector(w2, h2),
-            new Two.Vector(-w2, h2),
-            new Two.Vector(-w2, -h2),
-            new Two.Vector(w2, -h2)
+            new Two.Anchor(w2, h2),
+            new Two.Anchor(-w2, h2),
+            new Two.Anchor(-w2, -h2),
+            new Two.Anchor(w2, -h2)
           ];
 
           var rect = new Two.Polygon(points, true).noStroke();
           rect.translation.set(x + w2, y + h2);
+          rect.fill = 'black';
 
           return Two.Utils.applySvgAttributes(node, rect);
 
@@ -1819,8 +2175,8 @@ var Backbone = Backbone || {};
           var h2 = height / 2;
 
           var points = [
-            new Two.Vector(- w2, - h2),
-            new Two.Vector(w2, h2)
+            new Two.Anchor(- w2, - h2),
+            new Two.Anchor(w2, h2)
           ];
 
           // Center line and translate to desired position.
@@ -1836,164 +2192,35 @@ var Backbone = Backbone || {};
 
       /**
        * Given 2 points (a, b) and corresponding control point for each
-       * return an array of points that represent an Adaptive Subdivision
-       * of Bezier Curves. Founded in the online article:
-       *
-       * http://www.antigrain.com/research/adaptive_bezier/index.html
-       *
-       * Where level represents how many levels deep the function has
-       * already recursed.
-       *
+       * return an array of points that represent points plotted along
+       * the curve. Number points determined by limit.
        */
-      subdivide: function(x1, y1, x2, y2, x3, y3, x4, y4, level) {
+      subdivide: function(x1, y1, x2, y2, x3, y3, x4, y4, limit) {
 
-        // Constants
-        var epsilon = Two.Utils.Curve.CollinearityEpsilon,
-          limit = Two.Utils.Curve.RecursionLimit,
-          cuspLimit = Two.Utils.Curve.CuspLimit,
-          tolerance = Two.Utils.Curve.Tolerance,
-          da1, da2;
+        var limit = limit || Two.Utils.Curve.RecursionLimit;
+        var amount = limit + 1;
 
-        level = level || 0;
+        // // Don't recurse if the end points are identical
+        // if (x1 === x4 && y1 === y4) {
+        //   return [new Two.Anchor(x4, y4)];
+        // }
 
-        if (level > limit) {
-          return [];
-        }
+        return _.map(_.range(0, amount), function(i) {
 
-        var x12 = (x1 + x2) / 2,
-            y12 = (y1 + y2) / 2,
-            x23 = (x2 + x3) / 2,
-            y23 = (y2 + y3) / 2,
-            x34 = (x3 + x4) / 2,
-            y34 = (y3 + y4) / 2,
-            x123  = (x12 + x23) / 2,
-            y123  = (y12 + y23) / 2,
-            x234  = (x23 + x34) / 2,
-            y234  = (y23 + y34) / 2,
-            x1234 = (x123 + x234) / 2,
-            y1234 = (y123 + y234) / 2;
+          var t = i / amount;
+          var x = getPointOnCubicBezier(t, x1, x2, x3, x4);
+          var y = getPointOnCubicBezier(t, y1, y2, y3, y4);
 
+          return new Two.Anchor(x, y);
 
-        // Try to approximate the full cubic curve by a single straight line.
-        var dx = x4 - x1;
-        var dy = y4 - y1;
+        });
 
-        var d2 = abs(((x2 - x4) * dy - (y2 - y4) * dx));
-        var d3 = abs(((x3 - x4) * dy - (y3 - y4) * dx));
+      },
 
-        if (level > 0) {
-
-          if (d2 > epsilon && d3 > epsilon) {
-
-            if ((d2 + d3) * (d2 + d3) <= tolerance.distance * (dx * dx + dy * dy)) {
-
-              if (tolerance.angle < tolerance.epsilon) {
-                return [new Two.Vector(x1234, y1234)];
-              }
-
-              var a23 = atan2(y3 - y2, x3 - x2);
-              da1 = abs(a23 - atan2(y2 - y1, x2 - x1));
-              da2 = abs(atan2(y4 - y3, x4 - x3) - a23);
-
-              if (da1 >= PI) da1 = TWO_PI - da1;
-              if (da2 >= PI) da2 = TWO_PI - da2;
-
-              if (da1 + da2 < tolerance.angle) {
-                return [new Two.Vector(x1234, y1234)];
-              }
-
-              if (cuspLimit !== 0) {
-
-                if (da1 > cuspLimit) {
-                  return [new Two.Vector(x2, y2)];
-                }
-
-                if (da2 > cuspLimit) {
-                  return [new Two.Vector(x3, y3)];
-                }
-
-              }
-
-            }
-
-          }
-
-        } else {
-
-          if (d2 > epsilon) {
-
-            if (d2 * d2 <= tolerance.distance * (dx * dx + dy * dy)) {
-
-              if (tolerance.angle < tolerance.epsilon) {
-                return [new Two.Vector(x1234, y1234)];
-              }
-
-              da1 = abs(atan2(y3 - y2, x3 - x2) - atan2(y2 - y1, x2 - x1));
-              if (da1 >= PI) da1 = TWO_PI - da1;
-
-              if (da1 < tolerance.angle) {
-                return [
-                  new Two.Vector(x2, y2),
-                  new Two.Vector(x3, y3)
-                ];
-              }
-
-              if (cuspLimit !== 0) {
-
-                if (da1 > cuspLimit) {
-                  return [new Two.Vector(x2, y2)];
-                }
-
-              }
-
-            } else if (d3 > epsilon) {
-
-              if (d3 * d3 <= tolerance.distance * (dx * dx + dy * dy)) {
-
-                if (tolerance.angle < tolerance.epsilon) {
-                  return [new Two.Vector(x1234, y1234)];
-                }
-
-                da1 = abs(atan2(y4 - y3, x4 - x3) - atan2(y3 - y2, x3 - x2));
-                if (da1 >= PI) da1 = TWO_PI - da1;
-
-                if (da1 < tolerance.angle) {
-                  return [
-                    new Two.Vector(x2, y2),
-                    new Two.Vector(x3, y3)
-                  ];
-                }
-
-                if (cuspLimit !== 0) {
-
-                  if (da1 > cuspLimit) {
-                    return [new Two.Vector2(x3, y3)];
-                  }
-
-                }
-
-              }
-
-            } else {
-
-              dx = x1234 - (x1 + x4) / 2;
-              dy = y1234 - (y1 + y4) / 2;
-              if (dx * dx + dy * dy <= tolerance.distance) {
-                return [new Two.Vector(x1234, y1234)];
-              }
-
-            }
-
-          }
-
-        }
-
-        return Two.Utils.subdivide(
-          x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1
-        ).concat(Two.Utils.subdivide(
-          x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1
-        ));
-
+      getPointOnCubicBezier: function(t, a, b, c, d) {
+        var k = 1 - t;
+        return (k * k * k * a) + (3 * k * k * t * b) + (3 * k * t * t * c)
+          + (t * t * t * d);
       },
 
       /**
@@ -2001,13 +2228,15 @@ var Backbone = Backbone || {};
        */
       getCurveFromPoints: function(points, closed) {
 
-        var curve = [], l = points.length, last = l - 1;
+        var l = points.length, last = l - 1;
 
         for (var i = 0; i < l; i++) {
 
-          var p = points[i];
-          var point = { x: p.x, y: p.y };
-          curve.push(point);
+          var point = points[i];
+
+          if (!_.isObject(point.controls)) {
+            Two.Anchor.AppendCurveProperties(point);
+          }
 
           var prev = closed ? mod(i - 1, l) : Math.max(i - 1, 0);
           var next = closed ? mod(i + 1, l) : Math.min(i + 1, last);
@@ -2017,19 +2246,15 @@ var Backbone = Backbone || {};
           var c = points[next];
           getControlPoints(a, b, c);
 
-          if (!b.u.x && !b.u.y) {
-            b.u.x = b.x;
-            b.u.y = b.y;
-          }
+          b._command = i === 0 ? Two.Commands.move : Two.Commands.curve;
 
-          if (!b.v.x && !b.v.y) {
-            b.v.x = b.x;
-            b.v.y = b.y;
-          }
+          b.controls.left.x = _.isNumber(b.controls.left.x) ? b.controls.left.x : b.x;
+          b.controls.left.y = _.isNumber(b.controls.left.y) ? b.controls.left.y : b.y;
+
+          b.controls.right.x = _.isNumber(b.controls.right.x) ? b.controls.right.x : b.x;
+          b.controls.right.y = _.isNumber(b.controls.right.y) ? b.controls.right.y : b.y;
 
         }
-
-        return curve;
 
       },
 
@@ -2049,13 +2274,16 @@ var Backbone = Backbone || {};
 
         // So we know which angle corresponds to which side.
 
-        var u, v;
+        b.u = _.isObject(b.controls.left) ? b.controls.left : new Two.Vector(0, 0);
+        b.v = _.isObject(b.controls.right) ? b.controls.right : new Two.Vector(0, 0);
 
-        if (d1 < 0.0001 || d2 < 0.0001) {
-          b.u = { x: b.x, y: b.y };
-          b.v = { x: b.x, y: b.y };
-          return b;
-        }
+        // if (d1 < 0.0001 || d2 < 0.0001) {
+        //   if (!b._relative) {
+        //     b.controls.left.copy(b);
+        //     b.controls.right.copy(b);
+        //   }
+        //   return b;
+        // }
 
         d1 *= 0.33; // Why 0.33?
         d2 *= 0.33;
@@ -2066,29 +2294,55 @@ var Backbone = Backbone || {};
           mid -= HALF_PI;
         }
 
-        u = {
-          x: b.x + cos(mid) * d1,
-          y: b.y + sin(mid) * d1
-        };
+        b.controls.left.x = cos(mid) * d1;
+        b.controls.left.y = sin(mid) * d1;
 
         mid -= PI;
 
-        v = {
-          x: b.x + cos(mid) * d2,
-          y: b.y + sin(mid) * d2
-        };
+        b.controls.right.x = cos(mid) * d2;
+        b.controls.right.y = sin(mid) * d2;
 
-        b.u = u;
-        b.v = v;
+        if (!b._relative) {
+          b.controls.left.x += b.x;
+          b.controls.left.y += b.y;
+          b.controls.right.x += b.x;
+          b.controls.right.y += b.y;
+        }
 
         return b;
 
       },
 
+      /**
+       * Get the reflection of a point "b" about point "a".
+       */
+      getReflection: function(a, b, relative) {
+
+        var d = b.distanceTo(Two.Vector.zero);
+        var theta = angleBetween(Two.Vector.zero, b);
+
+        return new Two.Vector(
+          d * Math.cos(theta) + (relative ? 0 : a.x),
+          d * Math.sin(theta) + (relative ? 0 : a.y)
+        );
+
+      },
+
       angleBetween: function(A, B) {
 
-        var dx = A.x - B.x;
-        var dy = A.y - B.y;
+        var dx, dy;
+
+        if (arguments.length >= 4) {
+
+          dx = arguments[0] - arguments[2];
+          dy = arguments[1] - arguments[3];
+
+          return atan2(dy, dx);
+
+        }
+
+        dx = A.x - B.x;
+        dy = A.y - B.y;
 
         return atan2(dy, dx);
 
@@ -2119,6 +2373,24 @@ var Backbone = Backbone || {};
 
       },
 
+      /**
+       * Array like collection that triggers inserted and removed events 
+       * removed : pop / shift / splice
+       * inserted : push / unshift / splice (with > 2 arguments)
+       */
+
+      Collection: function() {
+
+        Array.call(this);
+
+        if(arguments.length > 1) {
+          Array.prototype.push.apply(this, arguments);
+        } else if( arguments[0] && Array.isArray(arguments[0]) ) {
+          Array.prototype.push.apply(this, arguments[0]);
+        }
+
+      },
+
       // Custom Error Throwing for Two.js
 
       Error: function(message) {
@@ -2133,6 +2405,50 @@ var Backbone = Backbone || {};
   Two.Utils.Error.prototype = new Error();
   Two.Utils.Error.prototype.constructor = Two.Utils.Error;
 
+  Two.Utils.Collection.prototype = new Array();
+  Two.Utils.Collection.constructor = Two.Utils.Collection;
+
+  _.extend(Two.Utils.Collection.prototype, Backbone.Events, {
+
+    pop: function() {
+      var popped = Array.prototype.pop.apply(this, arguments);
+      this.trigger(Two.Events.remove, [popped]);
+      return popped;
+    },
+
+    shift: function() {
+      var shifted = Array.prototype.shift.apply(this, arguments);
+      this.trigger(Two.Events.remove, [shifted]);
+      return shifted;
+    },
+
+    push: function() {
+      var pushed = Array.prototype.push.apply(this, arguments);
+      this.trigger(Two.Events.insert, arguments);
+      return pushed;
+    },
+
+    unshift: function() {
+      var unshifted = Array.prototype.unshift.apply(this, arguments);
+      this.trigger(Two.Events.insert, arguments);
+      return unshifted;
+    },
+
+    splice: function() {
+      var spliced = Array.prototype.splice.apply(this, arguments);
+      var inserted;
+
+      this.trigger(Two.Events.remove, spliced);
+
+      if(arguments.length > 2) {
+        inserted = this.slice(arguments[0], arguments.length-2);
+        this.trigger(Two.Events.insert, inserted);
+      }
+      return spliced;
+    }
+
+  });
+
   // Localize utils
 
   var distanceBetween = Two.Utils.distanceBetween,
@@ -2142,7 +2458,9 @@ var Backbone = Backbone || {};
     getCurveFromPoints = Two.Utils.getCurveFromPoints,
     solveSegmentIntersection = Two.Utils.solveSegmentIntersection,
     decoupleShapes = Two.Utils.decoupleShapes,
-    mod = Two.Utils.mod;
+    mod = Two.Utils.mod,
+    getBackingStoreRatio = Two.Utils.getBackingStoreRatio,
+    getPointOnCubicBezier = Two.Utils.getPointOnCubicBezier;
 
   _.extend(Two.prototype, Backbone.Events, {
 
@@ -2156,7 +2474,6 @@ var Backbone = Backbone || {};
     play: function() {
 
       Two.Utils.setPlaying.call(this, true);
-
       return this.trigger(Two.Events.play);
 
     },
@@ -2164,7 +2481,6 @@ var Backbone = Backbone || {};
     pause: function() {
 
       this.playing = false;
-
       return this.trigger(Two.Events.pause);
 
     },
@@ -2174,37 +2490,28 @@ var Backbone = Backbone || {};
      */
     update: function() {
 
-      /**
-       * Purposefully deferred to be called after all other transformations.
-       */
-      _.defer(_.bind(function() {
+      var animated = !!this._lastFrame;
+      var now = getNow();
 
-        var animated = !!this._lastFrame;
-        var now = getNow();
+      this.frameCount++;
 
-        this.frameCount++;
+      if (animated) {
+        this.timeDelta = parseFloat((now - this._lastFrame).toFixed(3));
+      }
+      this._lastFrame = now;
 
-        if (animated) {
-          this.timeDelta = parseFloat((now - this._lastFrame).toFixed(3));
-        }
-        this._lastFrame = now;
+      var width = this.width;
+      var height = this.height;
+      var renderer = this.renderer;
 
-        var width = this.width;
-        var height = this.height;
-        var renderer = this.renderer;
+      // Update width / height for the renderer
+      if (width !== renderer.width || height !== renderer.height) {
+        renderer.setSize(width, height, this.ratio);
+      }
 
-        // Update width / height for the renderer
-        if (width !== renderer.width || height !== renderer.height) {
-          renderer.setSize(width, height);
-        }
+      this.trigger(Two.Events.update, this.frameCount, this.timeDelta);
 
-        this.trigger(Two.Events.update, this.frameCount, this.timeDelta);
-
-        this.render();
-
-      }, this));
-
-      return this;
+      return this.render();
 
     },
 
@@ -2214,7 +2521,6 @@ var Backbone = Backbone || {};
     render: function() {
 
       this.renderer.render();
-
       return this.trigger(Two.Events.render, this.frameCount);
 
     },
@@ -2250,10 +2556,7 @@ var Backbone = Backbone || {};
 
     clear: function() {
 
-      _.each(this.scene.children, function(child) {
-        child.remove();
-      });
-
+      this.scene.remove(_.toArray(this.scene.children));
       return this;
 
     },
@@ -2267,8 +2570,8 @@ var Backbone = Backbone || {};
       var h2 = height / 2;
 
       var points = [
-        new Two.Vector(- w2, - h2),
-        new Two.Vector(w2, h2)
+        new Two.Anchor(- w2, - h2),
+        new Two.Anchor(w2, h2)
       ];
 
       // Center line and translate to desired position.
@@ -2287,10 +2590,10 @@ var Backbone = Backbone || {};
       var h2 = height / 2;
 
       var points = [
-        new Two.Vector(w2, h2),
-        new Two.Vector(-w2, h2),
-        new Two.Vector(-w2, -h2),
-        new Two.Vector(w2, -h2)
+        new Two.Anchor(-w2, -h2),
+        new Two.Anchor(w2, -h2),
+        new Two.Anchor(w2, h2),
+        new Two.Anchor(-w2, h2)
       ];
 
       var rect = new Two.Polygon(points, true);
@@ -2316,7 +2619,7 @@ var Backbone = Backbone || {};
         var theta = pct * TWO_PI;
         var x = width * cos(theta);
         var y = height * sin(theta);
-        return new Two.Vector(x, y);
+        return new Two.Anchor(x, y);
       }, this);
 
       var ellipse = new Two.Polygon(points, true, true);
@@ -2339,7 +2642,7 @@ var Backbone = Backbone || {};
             break;
           }
           var y = arguments[i + 1];
-          points.push(new Two.Vector(x, y));
+          points.push(new Two.Anchor(x, y));
         }
       }
 
@@ -2377,7 +2680,7 @@ var Backbone = Backbone || {};
             break;
           }
           var y = arguments[i + 1];
-          points.push(new Two.Vector(x, y));
+          points.push(new Two.Anchor(x, y));
         }
       }
 
@@ -2413,7 +2716,7 @@ var Backbone = Backbone || {};
     /**
      * Interpret an SVG Node and add it to this instance's scene. The
      * distinction should be made that this doesn't `import` svg's, it solely
-     * interprets them into something compatible for Two.js — this is slightly
+     * interprets them into something compatible for Two.js — this is slightly
      * different than a direct transcription.
      */
     interpret: function(svgNode) {
@@ -2441,19 +2744,21 @@ var Backbone = Backbone || {};
     var width = this.width = wr.width;
     var height = this.height = wr.height;
 
-    this.renderer.setSize(width, height);
+    this.renderer.setSize(width, height, this.ratio);
     this.trigger(Two.Events.resize, width, height);
 
   }
 
   function getNow() {
-    return ((window.performance && window.performance.now)
-      ? window.performance : Date).now();
+    return ((root.performance && root.performance.now)
+      ? root.performance : Date).now();
   }
 
   // Request Animation Frame
 
   (function() {
+
+    requestAnimationFrame(arguments.callee);
 
     _.each(Two.Instances, function(t) {
 
@@ -2463,52 +2768,33 @@ var Backbone = Backbone || {};
 
     });
 
-    requestAnimationFrame(arguments.callee);
-
   })();
-
 
   //exports to multiple environments
   if (typeof define === 'function' && define.amd)
-	//AMD
-	define(function(){ return Two; });
+  //AMD
+  define(function(){ return Two; });
   else if (typeof module != "undefined" && module.exports)
-	//Node
-	module.exports = Two;
-
+  //Node
+  module.exports = Two;
 
 })();
 
 (function() {
 
+  // Localized variables
+  var parent, flag, x, y, dx, dy;
+
   var Vector = Two.Vector = function(x, y) {
 
-    x = x || 0;
-    y = y || 0;
-
-    Object.defineProperty(this, 'x', {
-      get: function() {
-        return x;
-      },
-      set: function(v) {
-        x = v;
-        this.trigger(Two.Events.change, 'x');
-      }
-    });
-
-    Object.defineProperty(this, 'y', {
-      get: function() {
-        return y;
-      },
-      set: function(v) {
-        y = v;
-        this.trigger(Two.Events.change, 'y');
-      }
-    });
+    this.x = x || 0;
+    this.y = y || 0;
 
   };
 
   _.extend(Vector, {
+
+    zero: new Two.Vector()
 
   });
 
@@ -2607,7 +2893,7 @@ var Backbone = Backbone || {};
     },
 
     distanceToSquared: function(v) {
-      var dx = this.x - v.x, dy = this.y - v.y;
+      dx = this.x - v.x, dy = this.y - v.y;
       return dx * dx + dy * dy;
     },
 
@@ -2620,16 +2906,364 @@ var Backbone = Backbone || {};
     },
 
     lerp: function(v, t) {
-      var x = (v.x - this.x) * t + this.x;
-      var y = (v.y - this.y) * t + this.y;
+      x = (v.x - this.x) * t + this.x;
+      y = (v.y - this.y) * t + this.y;
       return this.set(x, y);
     },
 
     isZero: function() {
       return (this.length() < 0.0001 /* almost zero */ );
+    },
+
+    toString: function() {
+      return this.x + ',' + this.y;
+    },
+
+    toObject: function() {
+      return { x: this.x, y: this.y };
     }
 
   });
+
+  var BoundProto = {
+
+    set: function(x, y) {
+      this._x = x;
+      this._y = y;
+      return this.trigger(Two.Events.change);
+    },
+
+    copy: function(v) {
+      this._x = v.x;
+      this._y = v.y;
+      return this.trigger(Two.Events.change);
+    },
+
+    clear: function() {
+      this._x = 0;
+      this._y = 0;
+      return this.trigger(Two.Events.change);
+    },
+
+    clone: function() {
+      return new Vector(this._x, this._y);
+    },
+
+    add: function(v1, v2) {
+      this._x = v1.x + v2.x;
+      this._y = v1.y + v2.y;
+      return this.trigger(Two.Events.change);
+    },
+
+    addSelf: function(v) {
+      this._x += v.x;
+      this._y += v.y;
+      return this.trigger(Two.Events.change);
+    },
+
+    sub: function(v1, v2) {
+      this._x = v1.x - v2.x;
+      this._y = v1.y - v2.y;
+      return this.trigger(Two.Events.change);
+    },
+
+    subSelf: function(v) {
+      this._x -= v.x;
+      this._y -= v.y;
+      return this.trigger(Two.Events.change);
+    },
+
+    multiplySelf: function(v) {
+      this._x *= v.x;
+      this._y *= v.y;
+      return this.trigger(Two.Events.change);
+    },
+
+    multiplyScalar: function(s) {
+      this._x *= s;
+      this._y *= s;
+      return this.trigger(Two.Events.change);
+    },
+
+    divideScalar: function(s) {
+      if (s) {
+        this._x /= s;
+        this._y /= s;
+        return this.trigger(Two.Events.change);
+      }
+      return this.clear();
+    },
+
+    negate: function() {
+      return this.multiplyScalar(-1);
+    },
+
+    dot: function(v) {
+      return this._x * v.x + this._y * v.y;
+    },
+
+    lengthSquared: function() {
+      return this._x * this._x + this._y * this._y;
+    },
+
+    length: function() {
+      return Math.sqrt(this.lengthSquared());
+    },
+
+    normalize: function() {
+      return this.divideScalar(this.length());
+    },
+
+    distanceTo: function(v) {
+      return Math.sqrt(this.distanceToSquared(v));
+    },
+
+    distanceToSquared: function(v) {
+      dx = this._x - v.x, dy = this._y - v.y;
+      return dx * dx + dy * dy;
+    },
+
+    setLength: function(l) {
+      return this.normalize().multiplyScalar(l);
+    },
+
+    equals: function(v) {
+      return (this.distanceTo(v) < 0.0001 /* almost same position */);
+    },
+
+    lerp: function(v, t) {
+      x = (v.x - this._x) * t + this._x;
+      y = (v.y - this._y) * t + this._y;
+      return this.set(x, y);
+    },
+
+    isZero: function() {
+      return (this.length() < 0.0001 /* almost zero */ );
+    },
+
+    toString: function() {
+      return this._x + ',' + this._y;
+    },
+
+    toObject: function() {
+      return { x: this._x, y: this._y };
+    }
+
+  };
+
+  var xgs = {
+    get: function() {
+      return this._x;
+    },
+    set: function(v) {
+      this._x = v;
+      this.trigger(Two.Events.change, 'x');
+    }
+  };
+
+  var ygs = {
+    get: function() {
+      return this._y;
+    },
+    set: function(v) {
+      this._y = v;
+      this.trigger(Two.Events.change, 'y');
+    }
+  };
+
+  /**
+   * Override Backbone bind / on in order to add properly broadcasting.
+   * This allows Two.Vector to not broadcast events unless event listeners
+   * are explicity bound to it.
+   */
+
+  Two.Vector.prototype.bind = Two.Vector.prototype.on = function() {
+
+    if (!this._bound) {
+      this._x = this.x;
+      this._y = this.y;
+      Object.defineProperty(this, 'x', xgs);
+      Object.defineProperty(this, 'y', ygs);
+      _.extend(this, BoundProto);
+      this._bound = true; // Reserved for event initialization check
+    }
+
+    Backbone.Events.bind.apply(this, arguments);
+
+    return this;
+
+  };
+
+})();
+
+(function() {
+
+  // Localized variables
+  var commands = Two.Commands, x, y, o, controls, clone;
+
+  /**
+   * An object that holds 3 `Two.Vector`s, the anchor point and its
+   * corresponding handles: `left` and `right`.
+   */
+  var Anchor = Two.Anchor = function(x, y, ux, uy, vx, vy, command) {
+
+    Two.Vector.call(this, x, y);
+
+    this._broadcast = _.bind(function() {
+      this.trigger(Two.Events.change);
+    }, this);
+
+    this._command = command || commands.move;
+    this._relative = true;
+
+    if (!command) {
+      return this;
+    }
+
+    Anchor.AppendCurveProperties(this);
+
+    if (_.isNumber(ux)) {
+      this.controls.left.x = ux;
+    }
+    if (_.isNumber(uy)) {
+      this.controls.left.y = uy;
+    }
+    if (_.isNumber(vx)) {
+      this.controls.right.x = vx;
+    }
+    if (_.isNumber(vy)) {
+      this.controls.right.y = vy;
+    }
+
+  };
+
+  _.extend(Anchor, {
+
+    AppendCurveProperties: function(anchor) {
+
+      x = anchor._x || anchor.x;
+      y = anchor._y || anchor.y;
+
+      anchor.controls = {
+        left: new Two.Vector(0, 0),
+        right: new Two.Vector(0, 0)
+      };
+
+    }
+
+  });
+
+  var AnchorProto = {
+
+    listen: function() {
+
+      if (!_.isObject(this.controls)) {
+        Anchor.AppendCurveProperties(this);
+      }
+
+      _.each(this.controls, function(v) {
+        v.bind(Two.Events.change, this._broadcast);
+      }, this);
+
+      return this;
+
+    },
+
+    ignore: function() {
+
+      _.each(this.controls, function(v) {
+        v.unbind(Two.Events.change, this._broadcast);
+      }, this);
+
+      return this;
+
+    },
+
+    clone: function() {
+
+      controls = this.controls;
+
+      clone = new Two.Anchor(
+        this.x,
+        this.y,
+        controls && controls.left.x,
+        controls && controls.left.y,
+        controls && controls.right.x,
+        controls && controls.right.y,
+        this.command
+      );
+      clone.relative = this._relative;
+      return clone;
+
+    },
+
+    toObject: function() {
+      o = {
+        x: this.x,
+        y: this.y
+      };
+      if (this._command) {
+        o.command = this._command;
+      }
+      if (this._relative) {
+        o.relative = this._relative;
+      }
+      if (this.controls) {
+        o.controls = {
+          left: this.controls.left.toObject(),
+          right: this.controls.right.toObject()
+        };
+      }
+      return o;
+    }
+
+  };
+
+  Object.defineProperty(Anchor.prototype, 'command', {
+
+    get: function() {
+      return this._command;
+    },
+
+    set: function(c) {
+      this._command = c;
+      if (this._command === commands.curve && !_.isObject(this.controls)) {
+        Anchor.AppendCurveProperties(this);
+      }
+      return this.trigger(Two.Events.change);
+    }
+
+  });
+
+  Object.defineProperty(Anchor.prototype, 'relative', {
+
+    get: function() {
+      return this._relative;
+    },
+
+    set: function(b) {
+      if (this._relative == b) {
+        return this;
+      }
+      this._relative = !!b;
+      return this.trigger(Two.Events.change);
+    }
+
+  });
+
+  _.extend(Anchor.prototype, Two.Vector.prototype, AnchorProto);
+
+  // Make it possible to bind and still have the Anchor specific
+  // inheritance from Two.Vector
+  Two.Anchor.prototype.bind = Two.Anchor.prototype.on = function() {
+    Two.Vector.prototype.bind.apply(this, arguments);
+    _.extend(this, AnchorProto);
+  };
+
+  Two.Anchor.prototype.unbind = Two.Anchor.prototype.off = function() {
+    Two.Vector.prototype.unbind.apply(this, arguments);
+    _.extend(this, AnchorProto);
+  };
 
 })();
 (function() {
@@ -2639,6 +3273,11 @@ var Backbone = Backbone || {};
    */
   var range = _.range(6),
     cos = Math.cos, sin = Math.sin, tan = Math.tan;
+
+  // Local variables
+  var a, b, c, d, e, f, g, h, i, hasOutput, out, elements, x, y, z, C, A0, A1,
+    A2, A3, A4, A5,A6, A7, A8, B0, B1, B2,B3, B4, B5,B6, B7, B8, A, B, l, s, c,
+    a00, a01, a02, a10, a11, a12, a20, a21, a22, b01, b11, b21, det, TEMP = [];
 
   /**
    * Two.Matrix contains an array of elements that represent
@@ -2680,13 +3319,13 @@ var Backbone = Backbone || {};
     /**
      * Multiply two matrix 3x3 arrays
      */
-    Multiply: function(A, B) {
+    Multiply: function(A, B, C) {
 
       if (B.length <= 3) { // Multiply Vector
 
-        var x, y, z;
-        var a = B[0] || 0, b = B[1] || 0, c = B[2] || 0;
-        var e = A;
+        x, y, z;
+        a = B[0] || 0, b = B[1] || 0, c = B[2] || 0;
+        e = A;
 
         // Go down rows first
         // a, d, g, b, e, h, c, f, i
@@ -2699,25 +3338,28 @@ var Backbone = Backbone || {};
 
       }
 
-      var A0 = A[0], A1 = A[1], A2 = A[2];
-      var A3 = A[3], A4 = A[4], A5 = A[5];
-      var A6 = A[6], A7 = A[7], A8 = A[8];
+      A0 = A[0], A1 = A[1], A2 = A[2];
+      A3 = A[3], A4 = A[4], A5 = A[5];
+      A6 = A[6], A7 = A[7], A8 = A[8];
 
-      var B0 = B[0], B1 = B[1], B2 = B[2];
-      var B3 = B[3], B4 = B[4], B5 = B[5];
-      var B6 = B[6], B7 = B[7], B8 = B[8];
+      B0 = B[0], B1 = B[1], B2 = B[2];
+      B3 = B[3], B4 = B[4], B5 = B[5];
+      B6 = B[6], B7 = B[7], B8 = B[8];
 
-      return [
-        A0 * B0 + A1 * B3 + A2 * B6,
-        A0 * B1 + A1 * B4 + A2 * B7,
-        A0 * B2 + A1 * B5 + A2 * B8,
-        A3 * B0 + A4 * B3 + A5 * B6,
-        A3 * B1 + A4 * B4 + A5 * B7,
-        A3 * B2 + A4 * B5 + A5 * B8,
-        A6 * B0 + A7 * B3 + A8 * B6,
-        A6 * B1 + A7 * B4 + A8 * B7,
-        A6 * B2 + A7 * B5 + A8 * B8
-      ];
+      C = C || new Two.Array(9);
+
+      C[0] = A0 * B0 + A1 * B3 + A2 * B6;
+      C[1] = A0 * B1 + A1 * B4 + A2 * B7;
+      C[2] = A0 * B2 + A1 * B5 + A2 * B8;
+      C[3] = A3 * B0 + A4 * B3 + A5 * B6;
+      C[4] = A3 * B1 + A4 * B4 + A5 * B7;
+      C[5] = A3 * B2 + A4 * B5 + A5 * B8;
+      C[6] = A6 * B0 + A7 * B3 + A8 * B6;
+      C[7] = A6 * B1 + A7 * B4 + A8 * B7;
+      C[8] = A6 * B2 + A7 * B5 + A8 * B8;
+
+      return C;
+
     }
 
   });
@@ -2731,7 +3373,7 @@ var Backbone = Backbone || {};
      */
     set: function(a, b, c, d, e, f) {
 
-      var elements = a, l = arguments.length;
+      elements = a, l = arguments.length;
       if (!_.isArray(elements)) {
         elements = _.toArray(arguments);
       }
@@ -2762,7 +3404,7 @@ var Backbone = Backbone || {};
      */
     multiply: function(a, b, c, d, e, f, g, h, i) {
 
-      var elements = arguments, l = elements.length;
+      elements = arguments, l = elements.length;
 
       // Multiply scalar
 
@@ -2778,7 +3420,7 @@ var Backbone = Backbone || {};
 
       if (l <= 3) { // Multiply Vector
 
-        var x, y, z;
+        x, y, z;
         a = a || 0, b = b || 0, c = c || 0;
         e = this.elements;
 
@@ -2795,8 +3437,8 @@ var Backbone = Backbone || {};
 
       // Multiple matrix
 
-      var A = this.elements;
-      var B = elements;
+      A = this.elements;
+      B = elements;
 
       A0 = A[0], A1 = A[1], A2 = A[2];
       A3 = A[3], A4 = A[4], A5 = A[5];
@@ -2824,19 +3466,19 @@ var Backbone = Backbone || {};
 
     inverse: function(out) {
 
-      var a = this.elements;
-      var out = out || new Two.Matrix();
+      a = this.elements;
+      out = out || new Two.Matrix();
 
-      var a00 = a[0], a01 = a[1], a02 = a[2],
-        a10 = a[3], a11 = a[4], a12 = a[5],
-        a20 = a[6], a21 = a[7], a22 = a[8],
+      a00 = a[0], a01 = a[1], a02 = a[2];
+      a10 = a[3], a11 = a[4], a12 = a[5];
+      a20 = a[6], a21 = a[7], a22 = a[8];
 
-        b01 = a22 * a11 - a12 * a21,
-        b11 = -a22 * a10 + a12 * a20,
-        b21 = a21 * a10 - a11 * a20,
+      b01 = a22 * a11 - a12 * a21;
+      b11 = -a22 * a10 + a12 * a20;
+      b21 = a21 * a10 - a11 * a20;
 
-        // Calculate the determinant
-        det = a00 * b01 + a01 * b11 + a02 * b21;
+      // Calculate the determinant
+      det = a00 * b01 + a01 * b11 + a02 * b21;
 
       if (!det) { 
         return null; 
@@ -2863,7 +3505,7 @@ var Backbone = Backbone || {};
      */
     scale: function(sx, sy) {
 
-      var l = arguments.length;
+      l = arguments.length;
       if (l <= 1) {
         sy = sx;
       }
@@ -2877,8 +3519,8 @@ var Backbone = Backbone || {};
      */
     rotate: function(radians) {
 
-      var c = cos(radians);
-      var s = sin(radians);
+      c = cos(radians);
+      s = sin(radians);
 
       return this.multiply(c, -s, 0, s, c, 0, 0, 0, 1);
 
@@ -2898,7 +3540,7 @@ var Backbone = Backbone || {};
      */
     skewX: function(radians) {
 
-      var a = tan(radians);
+      a = tan(radians);
 
       return this.multiply(1, a, 0, 0, 1, 0, 0, 0, 1);
 
@@ -2909,7 +3551,7 @@ var Backbone = Backbone || {};
      */
     skewY: function(radians) {
 
-      var a = tan(radians);
+      a = tan(radians);
 
       return this.multiply(1, 0, 0, a, 1, 0, 0, 0, 1);
 
@@ -2918,35 +3560,61 @@ var Backbone = Backbone || {};
     /**
      * Create a transform string to be used with rendering apis.
      */
-    toString: function() {
+    toString: function(fullMatrix) {
 
-      return this.toArray().join(' ');
+      this.toArray(fullMatrix, TEMP);
+
+      return TEMP.join(' ');
 
     },
 
     /**
      * Create a transform array to be used with rendering apis.
      */
-    toArray: function(fullMatrix) {
+    toArray: function(fullMatrix, output) {
 
-      var elements = this.elements;
+      elements = this.elements;
+      hasOutput = !!output;
 
-      var a = parseFloat(elements[0].toFixed(3));
-      var b = parseFloat(elements[1].toFixed(3));
-      var c = parseFloat(elements[2].toFixed(3));
-      var d = parseFloat(elements[3].toFixed(3));
-      var e = parseFloat(elements[4].toFixed(3));
-      var f = parseFloat(elements[5].toFixed(3));
+      a = parseFloat(elements[0].toFixed(3));
+      b = parseFloat(elements[1].toFixed(3));
+      c = parseFloat(elements[2].toFixed(3));
+      d = parseFloat(elements[3].toFixed(3));
+      e = parseFloat(elements[4].toFixed(3));
+      f = parseFloat(elements[5].toFixed(3));
 
       if (!!fullMatrix) {
 
-        var g = parseFloat(elements[6].toFixed(3));
-        var h = parseFloat(elements[7].toFixed(3));
-        var i = parseFloat(elements[8].toFixed(3));
+        g = parseFloat(elements[6].toFixed(3));
+        h = parseFloat(elements[7].toFixed(3));
+        i = parseFloat(elements[8].toFixed(3));
+
+        if (hasOutput) {
+          output[0] = a;
+          output[1] = d;
+          output[2] = g;
+          output[3] = b;
+          output[4] = e;
+          output[5] = h;
+          output[6] = c;
+          output[7] = f;
+          output[8] = i;
+          return;
+        }
 
         return [
           a, d, g, b, e, h, c, f, i
         ];
+      }
+
+      if (hasOutput) {
+        output[0] = a;
+        output[1] = d;
+        output[2] = b;
+        output[3] = e;
+        output[4] = c;
+        output[5] = f;
+        return;
       }
 
       return [
@@ -2960,15 +3628,15 @@ var Backbone = Backbone || {};
      */
     clone: function() {
 
-      var a = this.elements[0];
-      var b = this.elements[1];
-      var c = this.elements[2];
-      var d = this.elements[3];
-      var e = this.elements[4];
-      var f = this.elements[5];
-      var g = this.elements[6];
-      var h = this.elements[7];
-      var i = this.elements[8];
+      a = this.elements[0];
+      b = this.elements[1];
+      c = this.elements[2];
+      d = this.elements[3];
+      e = this.elements[4];
+      f = this.elements[5];
+      g = this.elements[6];
+      h = this.elements[7];
+      i = this.elements[8];
 
       return new Two.Matrix(a, b, c, d, e, f, g, h, i);
 
@@ -2980,13 +3648,9 @@ var Backbone = Backbone || {};
 
 (function() {
 
-  /**
-   * Scope specific variables
-   */
-
   // Localize variables
-  var getCurveFromPoints = Two.Utils.getCurveFromPoints,
-    mod = Two.Utils.mod;
+  var mod = Two.Utils.mod, flagMatrix, elem, l, last, tag, name, command,
+    previous, next, a, c, vx, vy, ux, uy, ar, bl, br, cl, x, y, ar, bl;
 
   var svg = {
 
@@ -2999,36 +3663,40 @@ var Backbone = Backbone || {};
      * Create an svg namespaced element.
      */
     createElement: function(name, attrs) {
-      var tag = name;
-      var elem = document.createElementNS(this.ns, tag);
+      tag = name;
+      elem = document.createElementNS(this.ns, tag);
       if (tag === 'svg') {
         attrs = _.defaults(attrs || {}, {
           version: this.version
         });
       }
       if (_.isObject(attrs)) {
-        this.setAttributes(elem, attrs);
+        svg.setAttributes(elem, attrs);
       }
       return elem;
+    },
+
+    setAttribute: function(v, k) {
+      this.setAttribute(k, v);
     },
 
     /**
      * Add attributes from an svg element.
      */
     setAttributes: function(elem, attrs) {
-      _.each(attrs, function(v, k) {
-        this.setAttribute(k, v);
-      }, elem);
+      _.each(attrs, svg.setAttribute, elem);
       return this;
+    },
+
+    removeAttribute: function(v, k) {
+      this.removeAttribute(k);
     },
 
     /**
      * Remove attributes from an svg element.
      */
     removeAttributes: function(elem, attrs) {
-      _.each(attrs, function(a) {
-        this.removeAttribute(a);
-      }, elem);
+      _.each(attrs, svg.removeAttribute, elem);
       return this;
     },
 
@@ -3038,76 +3706,233 @@ var Backbone = Backbone || {};
      * possible, because this call will be happening multiple times a 
      * second.
      */
-    toString: function(points, closed, curved) {
+    toString: function(points, closed) {
 
       var l = points.length,
-        last = l - 1;
+        last = l - 1,
+        d;  // The elusive last Two.Commands.move point
 
-      if (!curved) {
-        return _.map(points, function(v, i) {
-          var command;
-          if (i <= 0) {
-            command = 'M';
-          } else {
-            command = 'L';
-          }
-          command += ' ' + v.x.toFixed(3) + ' ' + v.y.toFixed(3);
-          if (i >= last && closed) {
-            command += ' Z';
-          }
-          return command;
-        }).join(' ');
-      }
-
-      var curve = getCurveFromPoints(points, closed);
-
-      return _.map(curve, function(b, i) {
+      return _.map(points, function(b, i) {
 
         var command;
         var prev = closed ? mod(i - 1, l) : Math.max(i - 1, 0);
         var next = closed ? mod(i + 1, l) : Math.min(i + 1, last);
 
-        var a = curve[prev];
-        var c = curve[next];
+        var a = points[prev];
+        var c = points[next];
 
-        var vx = a.v.x.toFixed(3);
-        var vy = a.v.y.toFixed(3);
-
-        var ux = b.u.x.toFixed(3);
-        var uy = b.u.y.toFixed(3);
+        var vx, vy, ux, uy, ar, bl, br, cl;
 
         var x = b.x.toFixed(3);
         var y = b.y.toFixed(3);
 
-        if (i <= 0) {
-          command = 'M ' + x + ' ' + y;
-        } else {
-          command = 'C ' + 
-            vx + ' ' + vy + ' ' + ux + ' ' + uy + ' ' + x + ' ' + y;
+        switch (b._command) {
+
+          case Two.Commands.close:
+            command = Two.Commands.close;
+            break;
+
+          case Two.Commands.curve:
+
+            var ar = (a.controls && a.controls.right) || a;
+            var bl = (b.controls && b.controls.left) || b;
+
+            if (a._relative) {
+              vx = (ar.x + a.x).toFixed(3);
+              vy = (ar.y + a.y).toFixed(3);
+            } else {
+              vx = ar.x.toFixed(3);
+              vy = ar.y.toFixed(3);
+            }
+
+            if (b._relative) {
+              ux = (bl.x + b.x).toFixed(3);
+              uy = (bl.y + b.y).toFixed(3);
+            } else {
+              ux = bl.x.toFixed(3);
+              uy = bl.y.toFixed(3);
+            }
+
+            command = ((i === 0) ? Two.Commands.move : Two.Commands.curve)
+              + ' ' + vx + ' ' + vy + ' ' + ux + ' ' + uy + ' ' + x + ' ' + y;
+            break;
+
+          case Two.Commands.move:
+            d = b;
+            command = Two.Commands.move + ' ' + x + ' ' + y;
+            break;
+
+          default:
+            command = b._command + ' ' + x + ' ' + y;
+
         }
 
         // Add a final point and close it off
 
         if (i >= last && closed) {
 
-          vx = b.v.x.toFixed(3);
-          vy = b.v.y.toFixed(3);
+          if (b._command === Two.Commands.curve) {
 
-          ux = c.u.x.toFixed(3);
-          uy = c.u.y.toFixed(3);
+            // Make sure we close to the most previous Two.Commands.move
+            c = d;
 
-          x = c.x.toFixed(3);
-          y = c.y.toFixed(3);
+            br = (b.controls && b.controls.right) || b;
+            cl = (c.controls && c.controls.left) || c;
 
-          command += 
-            ' C ' + vx + ' ' + vy + ' ' + ux + ' ' + uy + ' ' + x + ' ' + y;
+            if (b._relative) {
+              vx = (br.x + b.x).toFixed(3);
+              vy = (br.y + b.y).toFixed(3);
+            } else {
+              vx = br.x.toFixed(3);
+              vy = br.y.toFixed(3);
+            }
+
+            if (c._relative) {
+              ux = (cl.x + c.x).toFixed(3);
+              uy = (cl.y + c.y).toFixed(3);
+            } else {
+              ux = cl.x.toFixed(3);
+              uy = cl.y.toFixed(3);
+            }
+
+            x = c.x.toFixed(3);
+            y = c.y.toFixed(3);
+
+            command += 
+              ' C ' + vx + ' ' + vy + ' ' + ux + ' ' + uy + ' ' + x + ' ' + y;
+          }
 
           command += ' Z';
+
         }
 
         return command;
 
       }).join(' ');
+
+    },
+
+    group: {
+
+      // TODO: Can speed up.
+      appendChild: function(id) {
+        elem = this.domElement.querySelector('#' + id);
+        if (elem) {
+          this.elem.appendChild(elem);
+        }
+      },
+
+      // TODO: Can speed up.
+      removeChild: function(id) {
+        elem = this.domElement.querySelector('#' + id);
+        if (elem) {
+          this.elem.removeChild(elem);
+        }
+      },
+
+      renderChild: function(child) {
+        svg[child._renderer.type].render.call(child, this);
+      },
+
+      render: function(domElement) {
+
+        this._update();
+
+        if (!this._renderer.elem) {
+          this._renderer.elem = svg.createElement('g', {
+            id: this.id
+          });
+          domElement.appendChild(this._renderer.elem);
+        }
+
+        // _Update styles for the <g>
+        flagMatrix = this._matrix.manual || this._flagMatrix;
+        var context = {
+          domElement: domElement,
+          elem: this._renderer.elem
+        };
+
+        if (flagMatrix) {
+          this._renderer.elem.setAttribute('transform', 'matrix(' + this._matrix.toString() + ')');
+        }
+
+        _.each(this.children, svg.group.renderChild, domElement);
+
+        if (this._flagAdditions) {
+          _.each(this.additions, svg.group.appendChild, context);
+        }
+
+        if (this._flagSubtractions) {
+          _.each(this.subtractions, svg.group.removeChild, context);
+        }
+
+        return this.flagReset();
+
+      }
+
+    },
+
+    polygon: {
+
+      render: function(domElement) {
+
+        this._update();
+
+        if (!this._renderer.elem) {
+          this._renderer.elem = svg.createElement('path', {
+            id: this.id
+          });
+          domElement.appendChild(this._renderer.elem);
+        }
+
+        elem = this._renderer.elem;
+        flagMatrix = this._matrix.manual || this._flagMatrix;
+
+        if (flagMatrix) {
+          elem.setAttribute('transform', 'matrix(' + this._matrix.toString() + ')');
+        }
+
+        if (this._flagVertices) {
+          vertices = svg.toString(this._vertices, this._closed);
+          elem.setAttribute('d', vertices);
+        }
+
+        if (this._flagFill) {
+          elem.setAttribute('fill', this._fill);
+        }
+
+        if (this._flagStroke) {
+          elem.setAttribute('stroke', this._stroke);
+        }
+
+        if (this._flagLinewidth) {
+          elem.setAttribute('stroke-width', this._linewidth);
+        }
+
+        if (this._flagOpacity) {
+          elem.setAttribute('stroke-opacity', this._opacity);
+          elem.setAttribute('fill-opacity', this._opacity);
+        }
+
+        if (this._flagVisible) {
+          elem.setAttribute('visibility', this._visible ? 'visible' : 'hidden');
+        }
+
+        if (this._flagCap) {
+          elem.setAttribute('stroke-linecap', this._cap);
+        }
+
+        if (this._flagJoin) {
+          elem.setAttribute('stroke-linejoin', this._join);
+        }
+
+        if (this._flagMiter) {
+          elem.setAttribute('stroke-miterlimit', this.miter);
+        }
+
+        return this.flagReset();
+
+      }
 
     }
 
@@ -3116,23 +3941,16 @@ var Backbone = Backbone || {};
   /**
    * @class
    */
-  var Renderer = Two[Two.Types.svg] = function() {
+  var Renderer = Two[Two.Types.svg] = function(params) {
 
-    this.count = 0;
-    this.domElement = svg.createElement('svg');
-    this.elements = [];
+    this.domElement = params.domElement || svg.createElement('svg');
 
-    this.domElement.style.visibility = 'hidden';
-
-    this.unveil = _.once(_.bind(function() {
-      this.domElement.style.visibility = 'visible';
-    }, this));
+    this.scene = new Two.Group();
+    this.scene.parent = this;
 
   };
 
   _.extend(Renderer, {
-
-    Identifier: 'two-',
 
     Utils: svg
 
@@ -3154,205 +3972,15 @@ var Backbone = Backbone || {};
 
     },
 
-    /**
-     * Add an object or objects to the renderer.
-     */
-    add: function(o) {
-
-      var l = arguments.length,
-        objects = o,
-        elements = this.elements,
-        domElement = this.domElement;
-
-      if (!_.isArray(o)) {
-        objects = _.map(arguments, function(a) {
-          return a;
-        });
-      }
-
-      _.each(objects, function(object) {
-
-        var elem, tag, styles, isGroup = object instanceof Two.Group;
-
-        if (_.isUndefined(object.id)) {
-          object.id = generateId.call(this);
-        }
-
-        // Generate an SVG equivalent element here.
-
-        if (isGroup) {
-          tag = 'g';
-          if (_.isUndefined(object.parent)) { // For the "scene".
-            object.parent = this;
-            object.unbind(Two.Events.change)
-              .bind(Two.Events.change, _.bind(this.update, this));
-          }
-          styles = getStyles(object);
-          // Remove unnecessary fluff from group
-          delete styles.stroke;
-          delete styles.fill;
-          delete styles['fill-opacity'];
-          delete styles['stroke-opacity'];
-          delete styles['stroke-linecap'];
-          delete styles['stroke-linejoin'];
-          delete styles['stroke-miterlimit'];
-          delete styles['stroke-width'];
-        } else {
-          tag = 'path';
-          styles = getStyles(object);
-        }
-
-        elem = svg.createElement(tag, styles);
-
-        domElement.appendChild(elem);
-        elements.push(elem);
-
-      }, this);
-
-      return this;
-
-    },
-
-    update: function(id, property, value, closed, curved) {
-
-      var elements = this.elements;
-      var elem = elements[id];
-
-      switch (property) {
-
-        case Two.Properties.hierarchy:
-          _.each(value, function(j) {
-            elem.appendChild(elements[j]);
-          });
-          break;
-        case Two.Properties.demotion:
-          _.each(value, function(j) {
-            elem.removeChild(elements[j]);
-          });
-          break;
-        default:
-          setStyles(elem, property, value, closed, curved);
-      }
-
-      return this;
-
-    },
-
     render: function() {
 
-      this.unveil();
+      svg.group.render.call(this.scene, this.domElement);
 
       return this;
 
     }
 
   });
-
-  function getStyles(o) {
-
-    var styles = {},
-      id = o.id,
-      translation = o.translation,
-      rotation = o.rotation,
-      scale = o.scale,
-      stroke = o.stroke,
-      linewidth = o.linewidth,
-      fill = o.fill,
-      opacity = o.opacity,
-      visible = o.visible,
-      cap = o.cap,
-      join = o.join,
-      miter = o.miter,
-      curved = o.curved,
-      closed = o.closed,
-      vertices = o.vertices;
-
-    if (id) {
-      styles.id = Renderer.Identifier + id;
-    }
-    if (translation && _.isNumber(scale) && _.isNumber(rotation)) {
-      // styles.transform = 'translate(' + translation.x + ',' + translation.y
-      //   + ') scale(' + scale + ') rotate(' + rotation + ')'
-      styles.transform = 'matrix(' + o._matrix.toString() + ')';
-    }
-    if (stroke) {
-      styles.stroke = stroke;
-    }
-    if (fill) {
-      styles.fill = fill;
-    }
-    if (opacity) {
-      styles['stroke-opacity'] = styles['fill-opacity'] = opacity;
-    }
-    // if (visible) {
-    styles.visibility = visible ? 'visible' : 'hidden';
-    // }
-    if (cap) {
-      styles['stroke-linecap'] = cap;
-    }
-    if (join) {
-      styles['stroke-linejoin'] = join;
-    }
-    if (miter) {
-      styles['stroke-miterlimit'] = miter;
-    }
-    if (linewidth) {
-      styles['stroke-width'] = linewidth;
-    }
-    if (vertices) {
-      styles.d = svg.toString(vertices, closed, curved);
-    }
-
-    return styles;
-
-  }
-
-  function setStyles(elem, property, value, closed, curved) {
-
-    switch (property) {
-
-      case 'matrix':
-        property = 'transform';
-        value = 'matrix(' + value.toString() + ')';
-        break;
-      case 'visible':
-        property = 'visibility';
-        value = value ? 'visible' : 'hidden';
-        break;
-      case 'cap':
-        property = 'stroke-linecap';
-        break;
-      case 'join':
-        property = 'stroke-linejoin';
-        break;
-      case 'miter':
-        property = 'stroke-miterlimit';
-        break;
-      case 'linewidth':
-        property = 'stroke-width';
-        break;
-      case 'vertices':
-        property = 'd';
-        value = svg.toString(value, closed, curved);
-        break;
-      case 'opacity':
-        svg.setAttributes(elem, {
-          'stroke-opacity': value,
-          'fill-opacity': value
-        });
-        return;
-
-    }
-
-    elem.setAttribute(property, value);
-
-  }
-
-  function generateId() {
-    var count = this.count;
-    this.count++;
-    return count;
-  }
 
 })();
 (function() {
@@ -3361,279 +3989,217 @@ var Backbone = Backbone || {};
    * Constants
    */
 
-  // Localize variables
   var root = this;
-  var getCurveFromPoints = Two.Utils.getCurveFromPoints,
-    mod = Two.Utils.mod;
+  var mod = Two.Utils.mod;
+  var getRatio = Two.Utils.getRatio;
 
-  /**
-   * A canvas specific representation of Two.Group
-   */
-  var Group = function(styles) {
-
-    _.each(styles, function(v, k) {
-      this[k] = v;
-    }, this);
-
-    this.children = [];
-
-  };
-
-  _.extend(Group.prototype, {
-
-    appendChild: function(elem) {
-
-      var parent = elem.parent;
-      var id = elem.id;
-
-      if (!_.isUndefined(parent)) {
-        parent.removeChild(elem);
-        // delete parent.children[id];
-      }
-
-      // this.children[id] = elem;
-      this.children.push(elem);
-      elem.parent = this;
-
-      return this;
-
-    },
-
-    removeChild: function(elem) {
-
-      // delete this.children[elem.id];
-      var index = _.indexOf(this.children, elem)
-      if (index < 0) {
-        return this;
-      }
-
-      return this.children.splice(index, 1)[0];
-
-    },
-
-    render: function(ctx) {
-
-      var matrix = this.matrix;
-
-      ctx.save();
-      ctx.transform(
-        matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
-
-      _.each(this.children, function(child) {
-        child.render(ctx);
-      });
-
-      ctx.restore();
-
-      return this;
-
-    }
-
-  });
-
-  /**
-   * A canvas specific representation of a drawable element.
-   */
-  var Element = function(styles) {
-
-    _.each(styles, function(v, k) {
-      this[k] = v;
-    }, this);
-
-  };
-
-  _.extend(Element.prototype, {
-
-    render: function(ctx) {
-
-      var matrix = this.matrix,
-        stroke = this.stroke,
-        linewidth = this.linewidth,
-        fill = this.fill,
-        opacity = this.opacity,
-        visible = this.visible,
-        cap = this.cap,
-        join = this.join,
-        miter = this.miter,
-        curved = this.curved,
-        closed = this.closed,
-        commands = this.commands,
-        length = commands.length,
-        last = length - 1;
-
-      if (!visible) {
-        return this;
-      }
-
-      // Transform
-
-      ctx.save();
-
-      if (matrix) {
-        ctx.transform(
-          matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
-      }
-
-      // Styles
-
-      if (fill) {
-        ctx.fillStyle = fill;
-      }
-      if (stroke) {
-        ctx.strokeStyle = stroke;
-      }
-      if (linewidth) {
-        ctx.lineWidth = linewidth;
-      }
-      if (miter) {
-        ctx.miterLimit = miter;
-      }
-      if (join) {
-        ctx.lineJoin = join;
-      }
-      if (cap) {
-        ctx.lineCap = cap;
-      }
-      if (_.isNumber(opacity)) {
-        ctx.globalAlpha = opacity;
-      }
-
-      ctx.beginPath();
-      _.each(commands, function(b, i) {
-
-        var x = b.x.toFixed(3), y = b.y.toFixed(3);
-
-        if (curved) {
-
-          var prev = closed ? mod(i - 1, length) : Math.max(i - 1, 0);
-          var next = closed ? mod(i + 1, length) : Math.min(i + 1, last);
-
-          var a = commands[prev];
-          var c = commands[next];
-
-          var vx = a.v.x.toFixed(3);
-          var vy = a.v.y.toFixed(3);
-
-          var ux = b.u.x.toFixed(3);
-          var uy = b.u.y.toFixed(3);
-
-          if (i <= 0) {
-
-            ctx.moveTo(x, y);
-
-          } else {
-
-            ctx.bezierCurveTo(vx, vy, ux, uy, x, y);
-
-            // Add a final point and close it off
-
-            if (i >= last && closed) {
-
-              vx = b.v.x.toFixed(3);
-              vy = b.v.y.toFixed(3);
-
-              ux = c.u.x.toFixed(3);
-              uy = c.u.y.toFixed(3);
-
-              x = c.x.toFixed(3);
-              y = c.y.toFixed(3);
-
-              ctx.bezierCurveTo(vx, vy, ux, uy, x, y);
-
-            }
-
-          }
-
-        } else {
-
-          if (i <= 0) {
-            ctx.moveTo(x, y);
-          } else {
-            ctx.lineTo(x, y);
-          }
-
-        }
-      });
-
-      // Loose ends
-
-      if (closed && !curved) {
-        ctx.closePath();
-      }
-
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.restore();
-
-    }
-
-  });
+  // Localized variables
+  var matrix, stroke, linewidth, fill, opacity, visible, cap, join, miter,
+    closed, commands, length, last;
+  var next, prev, a, c, d, ux, uy, vx, vy, ar, bl, br, cl, x, y;
 
   var canvas = {
 
-    /**
-     * Account for high dpi rendering.
-     * http://www.html5rocks.com/en/tutorials/canvas/hidpi/
-     */
+    group: {
 
-    devicePixelRatio: root.devicePixelRatio || 1,
+      renderChild: function(child) {
+        canvas[child._renderer.type].render.call(child, this);
+      },
 
-    getBackingStoreRatio: function(ctx) {
-      return ctx.webkitBackingStorePixelRatio ||
-        ctx.mozBackingStorePixelRatio ||
-        ctx.msBackingStorePixelRatio ||
-        ctx.oBackingStorePixelRatio ||
-        ctx.backingStorePixelRatio || 1;
-    },
+      render: function(ctx) {
 
-    getRatio: function(ctx) {
-      return this.devicePixelRatio / this.getBackingStoreRatio(ctx);
-    },
+        // TODO: Add a check here to only invoke _update if need be.
+        this._update();
 
-    /**
-     * Turn a set of vertices into a string for drawing in a canvas.
-     */
-    toArray: function(points, curved, closed) {
+        matrix = this._matrix.elements;
 
-      var l = points.length,
-        last = l - 1;
+        ctx.save();
+        ctx.transform(
+          matrix[0], matrix[3], matrix[1], matrix[4], matrix[2], matrix[5]);
 
-      if (!curved) {
-        return _.map(points, function(v, i) {
-          return { x: v.x, y: v.y };
-        });
+        _.each(this.children, canvas.group.renderChild, ctx);
+
+        ctx.restore();
+
+        return this.flagReset();
+
       }
 
-      return getCurveFromPoints(points, closed);
+    },
+
+    polygon: {
+
+      render: function(ctx) {
+
+        // TODO: Add a check here to only invoke _update if need be.
+        this._update();
+
+        matrix = this._matrix.elements;
+        stroke = this.stroke;
+        linewidth = this.linewidth;
+        fill = this.fill;
+        opacity = this.opacity;
+        visible = this.visible;
+        cap = this.cap;
+        join = this.join;
+        miter = this.miter;
+        closed = this.closed;
+        commands = this._vertices; // Commands
+        length = commands.length;
+        last = length - 1;
+
+        if (!visible) {
+          return this;
+        }
+
+        // Transform
+
+        ctx.save();
+
+        if (matrix) {
+          ctx.transform(
+            matrix[0], matrix[3], matrix[1], matrix[4], matrix[2], matrix[5]);
+        }
+
+        // Styles
+
+        if (fill) {
+          ctx.fillStyle = fill;
+        }
+        if (stroke) {
+          ctx.strokeStyle = stroke;
+        }
+        if (linewidth) {
+          ctx.lineWidth = linewidth;
+        }
+        if (miter) {
+          ctx.miterLimit = miter;
+        }
+        if (join) {
+          ctx.lineJoin = join;
+        }
+        if (cap) {
+          ctx.lineCap = cap;
+        }
+        if (_.isNumber(opacity)) {
+          ctx.globalAlpha = opacity;
+        }
+
+        ctx.beginPath();
+        _.each(commands, function(b, i) {
+
+          x = b.x.toFixed(3), y = b.y.toFixed(3);
+
+          switch (b._command) {
+
+            case Two.Commands.close:
+              ctx.closePath();
+              break;
+
+            case Two.Commands.curve:
+
+              prev = closed ? mod(i - 1, length) : Math.max(i - 1, 0);
+              next = closed ? mod(i + 1, length) : Math.min(i + 1, last);
+
+              a = commands[prev], c = commands[next];
+              ar = (a.controls && a.controls.right) || a;
+              bl = (b.controls && b.controls.left) || b;
+
+              if (a._relative) {
+                vx = (ar.x + a.x).toFixed(3);
+                vy = (ar.y + a.y).toFixed(3);
+              } else {
+                vx = ar.x.toFixed(3);
+                vy = ar.y.toFixed(3);
+              }
+
+              if (b._relative) {
+                ux = (bl.x + b.x).toFixed(3);
+                uy = (bl.y + b.y).toFixed(3);
+              } else {
+                ux = bl.x.toFixed(3);
+                uy = bl.y.toFixed(3);
+              }
+
+              ctx.bezierCurveTo(vx, vy, ux, uy, x, y);
+
+              if (i >= last && closed) {
+
+                c = d;
+
+                br = (b.controls && b.controls.right) || b;
+                cl = (c.controls && c.controls.left) || c;
+
+                if (b._relative) {
+                  vx = (br.x + b.x).toFixed(3);
+                  vy = (br.y + b.y).toFixed(3);
+                } else {
+                  vx = br.x.toFixed(3);
+                  vy = br.y.toFixed(3);
+                }
+
+                if (c._relative) {
+                  ux = (cl.x + c.x).toFixed(3);
+                  uy = (cl.y + c.y).toFixed(3);
+                } else {
+                  ux = cl.x.toFixed(3);
+                  uy = cl.y.toFixed(3);
+                }
+
+                x = c.x.toFixed(3);
+                y = c.y.toFixed(3);
+
+                ctx.bezierCurveTo(vx, vy, ux, uy, x, y);
+
+              }
+
+              break;
+
+            case Two.Commands.line:
+              ctx.lineTo(x, y);
+              break;
+
+            case Two.Commands.move:
+              d = b;
+              ctx.moveTo(x, y);
+              break;
+
+          }
+
+        });
+
+        // Loose ends
+
+        if (closed) {
+          ctx.closePath();
+        }
+
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.restore();
+
+        return this.flagReset();
+
+      }
 
     }
 
   };
 
-  var Renderer = Two[Two.Types.canvas] = function() {
+  var Renderer = Two[Two.Types.canvas] = function(params) {
 
-    this.count = 0;
-    this.domElement = document.createElement('canvas');
+    this.domElement = params.domElement || document.createElement('canvas');
     this.ctx = this.domElement.getContext('2d');
-    this.overdraw = false;
+    this.overdraw = params.overdraw || false;
 
-    this.elements = [];
-
-    // Everything drawn on the canvas needs to come from the stage.
-    this.stage = null;
+    // Everything drawn on the canvas needs to be added to the scene.
+    this.scene = new Two.Group();
+    this.scene.parent = this;
 
   };
 
   _.extend(Renderer, {
-
-    Group: Group,
-
-    Element: Element,
-
-    getStyles: getStyles,
-
-    setStyles: setStyles,
 
     Utils: canvas
 
@@ -3646,7 +4212,7 @@ var Backbone = Backbone || {};
       this.width = width;
       this.height = height;
 
-      this.ratio = _.isUndefined(ratio) ? canvas.getRatio(this.ctx) : ratio;
+      this.ratio = _.isUndefined(ratio) ? getRatio(this.ctx) : ratio;
 
       this.domElement.width = width * this.ratio;
       this.domElement.height = height * this.ratio;
@@ -3660,117 +4226,11 @@ var Backbone = Backbone || {};
 
     },
 
-    add: function(o) {
-
-      var proto = Object.getPrototypeOf(this);
-        constructor = proto.constructor;
-
-      var l = arguments.length,
-        objects = o,
-        elements = this.elements,
-        domElement = this.domElement,
-
-        // For extensibility with WebGlRenderer
-
-        Group = constructor.Group,
-        Element = constructor.Element,
-        getStyles = constructor.getStyles;
-
-      if (!_.isArray(o)) {
-        objects = _.map(arguments, function(a) {
-          return a;
-        });
-      }
-
-      _.each(objects, function(object) {
-
-        var elem, tag, styles, isGroup = object instanceof Two.Group,
-          isStage = _.isNull(this.stage);
-
-        if (_.isUndefined(object.id)) {
-          object.id = generateId.call(this);
-        }
-
-        // Generate an element, a JavaScript object, that holds all the
-        // necessary information to draw to the canvas successfully.
-
-        if (isGroup) {
-          // Kind of represents a matrix, save and restore set.
-          styles = getStyles.call(this, object);
-          delete styles.stroke;
-          delete styles.fill;
-          delete styles.opacity;
-          delete styles.cap;
-          delete styles.join;
-          delete styles.miter;
-          delete styles.linewidth;
-          elem = new Group(styles);
-          if (isStage) { // Set the stage
-
-            this.stage = elem;
-            this.stage.object = object; // Reference for BoundingBox calc.
-
-            object.parent = this;
-            object.unbind(Two.Events.change)
-              .bind(Two.Events.change, _.bind(this.update, this));
-
-          }
-        } else {
-          // Has styles and draw commands.
-          elem = new Element(getStyles.call(this, object));
-        }
-
-        elements.push(elem);
-        if (!isStage) {
-          this.stage.appendChild(elem);
-        }
-
-      }, this);
-
-      return this;
-
-    },
-
-    update: function(id, property, value, closed, curved, strokeChanged) {
-
-      var proto = Object.getPrototypeOf(this);
-      var constructor = proto.constructor;
-
-      var elements = this.elements;
-      var elem = elements[id];
-
-      switch (property) {
-        case Two.Properties.hierarchy:
-          _.each(value, function(j) {
-            elem.appendChild(elements[j]);
-          });
-          break;
-        case Two.Properties.demotion:
-          _.each(value, function(j) {
-            elem.removeChild(elements[j]);
-            this.elements[j] = null;
-          }, this);
-          break;
-        default:
-          constructor.setStyles.call(this, elem, property, value, closed, curved, strokeChanged);
-      }
-
-      return this;
-
-    },
-
     render: function() {
 
-      if (_.isNull(this.stage)) {
-        return this;
-      }
+      var isOne = this.ratio === 1;
 
-      // TODO: Test performance between these two
-
-      // var rect = this.stage.object.getBoundingClientRect();
-      // this.ctx.clearRect(rect.left, rect.top, rect.width, rect.height);
-
-      if (this.ratio !== 1) {
+      if (!isOne) {
         this.ctx.save();
         this.ctx.scale(this.ratio, this.ratio);
       }
@@ -3779,9 +4239,9 @@ var Backbone = Backbone || {};
         this.ctx.clearRect(0, 0, this.width, this.height);
       }
 
-      this.stage.render(this.ctx);
+      canvas.group.render.call(this.scene, this.ctx);
 
-      if (this.ratio !== 1) {
+      if (!isOne) {
         this.ctx.restore();
       }
 
@@ -3795,215 +4255,28 @@ var Backbone = Backbone || {};
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
-  function getStyles(o) {
-
-    var styles = {},
-      id = o.id,
-      matrix = o._matrix,
-      stroke = o.stroke,
-      linewidth = o.linewidth,
-      fill = o.fill,
-      opacity = o.opacity,
-      visible = o.visible,
-      cap = o.cap,
-      join = o.join,
-      miter = o.miter,
-      curved = o.curved,
-      closed = o.closed,
-      vertices = o.vertices;
-
-    if (id) {
-      styles.id = id;
-    }
-    if (_.isObject(matrix)) {
-      styles.matrix = matrix.toArray();
-    }
-    if (stroke) {
-      styles.stroke = stroke;
-    }
-    if (fill) {
-      styles.fill = fill;
-    }
-    if (_.isNumber(opacity)) {
-      styles.opacity = opacity;
-    }
-    if (cap) {
-      styles.cap = cap;
-    }
-    if (join) {
-      styles.join = join;
-    }
-    if (miter) {
-      styles.miter = miter;
-    }
-    if (linewidth) {
-      styles.linewidth = linewidth;
-    }
-    if (vertices) {
-      styles.commands = canvas.toArray(vertices, curved, closed);
-    }
-    styles.visible = !!visible;
-    styles.curved = !!curved;
-    styles.closed = !!closed;
-
-    return styles;
-
-  }
-
-  function setStyles(elem, property, value, closed, curved) {
-
-    switch (property) {
-
-      case 'matrix':
-        property = 'matrix';
-        value = value.toArray();
-        break;
-      case 'vertices':
-        property = 'commands';
-        elem.curved = curved;
-        elem.closed = closed;
-        value = canvas.toArray(value, elem.curved, elem.closed);
-        break;
-
-    }
-
-    elem[property] = value;
-
-  }
-
-  function generateId() {
-    var count = this.count;
-    this.count++;
-    return count;
-  }
-
 })();
+
 (function() {
+
+  /**
+   * Constants
+   */
 
   var CanvasRenderer = Two[Two.Types.canvas],
     multiplyMatrix = Two.Matrix.Multiply,
-    getCommands = Two[Two.Types.canvas].Utils.toArray,
-    mod = Two.Utils.mod;
+    mod = Two.Utils.mod,
+    identity = [1, 0, 0, 0, 1, 0, 0, 0, 1],
+    transformation = new Two.Array(9),
+    getRatio = Two.Utils.getRatio;
 
-  var Group = function(styles) {
-
-    CanvasRenderer.Group.call(this, styles);
-
-  };
-
-  _.extend(Group.prototype, CanvasRenderer.Group.prototype, {
-
-    appendChild: function() {
-
-      CanvasRenderer.Group.prototype.appendChild.apply(this, arguments);
-
-      this.updateMatrix();
-
-      return this;
-
-    },
-
-    updateTexture: function(ctx) {
-
-      _.each(this.children, function(child) {
-        child.updateTexture(ctx);
-      });
-
-      return this;
-
-    },
-
-    updateMatrix: function(parent) {
-
-      var matrix = (parent && parent._matrix) || this.parent && this.parent._matrix;
-      var scale = (parent && parent._scale) || this.parent && this.parent._scale;
-
-      if (!matrix) {
-        return this;
-      }
-
-      this._matrix = multiplyMatrix(this.matrix, matrix);
-      this._scale = this.scale * scale;
-
-      _.each(this.children, function(child) {
-        child.updateMatrix(this);
-      }, this);
-
-      return this;
-
-    },
-
-    render: function(gl, program) {
-
-      _.each(this.children, function(child) {
-        child.render(gl, program);
-      });
-
-    }
-
-  });
-
-  var Element = function(styles) {
-
-    CanvasRenderer.Element.call(this, styles);
-
-  };
-
-  _.extend(Element.prototype, CanvasRenderer.Element.prototype, {
-
-    updateMatrix: function(parent) {
-
-      var matrix = (parent && parent._matrix) || this.parent && this.parent._matrix;
-      var scale = (parent && parent._scale) || this.parent && this.parent._scale;
-
-      if (!matrix) {
-        return this;
-      }
-
-      this._matrix = multiplyMatrix(this.matrix, matrix);
-      this._scale = this.scale * scale;
-
-      return this;
-
-    },
-
-    updateTexture: function(ctx) {
-
-      webgl.updateTexture(ctx, this);
-      return this;
-
-    },
-
-    render: function(gl, program) {
-
-      if (!this.visible || !this.opacity || !this.buffer) {
-        return this;
-      }
-
-      // Draw Texture
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.textureCoordsBuffer);
-
-      gl.vertexAttribPointer(program.textureCoords, 2, gl.FLOAT, false, 0, 0);
-
-      gl.bindTexture(gl.TEXTURE_2D, this.texture);
-
-
-      // Draw Rect
-
-      gl.uniformMatrix3fv(program.matrix, false, this._matrix);
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-
-      gl.vertexAttribPointer(program.position, 2, gl.FLOAT, false, 0, 0);
-
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-
-      return this;
-
-    }
-
-  });
+  // Localized variables
+  var parent, flagParentMatrix, flagMatrix, flagTexture, left, right, top,
+    bottom, x, y, a, b, c, d, controls, cl, cr, width, height, commands, canvas,
+    ctx, scale, stroke, linewidth, fill, opacity, cap, join, miter, closed,
+    length, last, centroid, cx, cy, next, prev, ux, uy, vx, vy, ar, bl, br,
+    program, linked, shader, compiled, error, gl, resolutionLocation, fs, vs,
+    params;
 
   var webgl = {
 
@@ -4018,35 +4291,167 @@ var Backbone = Backbone || {};
       1, 1
     ]),
 
+    group: {
+
+      renderChild: function(child) {
+        webgl[child._renderer.type].render.call(child, this.gl, this.program);
+      },
+
+      render: function(gl, program) {
+
+        this._update();
+
+        parent = this.parent;
+        flagParentMatrix = (parent._matrix && parent._matrix.manual) || parent._flagMatrix;
+        flagMatrix = this._matrix.manual || this._flagMatrix;
+
+        if (flagParentMatrix || flagMatrix) {
+
+          if (!this._renderer.matrix) {
+            this._renderer.matrix = new Two.Array(9);
+          }
+
+          // Reduce amount of object / array creation / deletion
+          this._matrix.toArray(true, transformation);
+
+          multiplyMatrix(transformation, parent._renderer.matrix, this._renderer.matrix);
+          this._renderer.scale = this._scale * parent._renderer.scale;
+
+          if (flagParentMatrix) {
+            this._flagMatrix = true;
+          }
+
+        }
+
+        _.each(this.children, webgl.group.renderChild, {
+          gl: gl,
+          program: program
+        });
+
+        return this.flagReset();
+
+      }
+
+    },
+
+    polygon: {
+
+      render: function(gl, program) {
+
+        if (!this._visible || !this._opacity) {
+          return this;
+        }
+
+        // Calculate what changed
+
+        parent = this.parent;
+        flagParentMatrix = parent._matrix.manual || parent._flagMatrix;
+        flagMatrix = this._matrix.manual || this._flagMatrix;
+        flagTexture = this._flagVertices || this._flagFill
+          || this._flagStroke || this._flagLinewidth || this._flagOpacity
+          || this._flagVisible || this._flagCap || this._flagJoin
+          || this._flagMiter || this._flagScale;
+
+        this._update();
+
+        if (flagParentMatrix || flagMatrix) {
+
+          if (!this._renderer.matrix) {
+            this._renderer.matrix = new Two.Array(9);
+          }
+
+          // Reduce amount of object / array creation / deletion
+
+          this._matrix.toArray(true, transformation);
+
+          multiplyMatrix(transformation, parent._renderer.matrix, this._renderer.matrix);
+          this._renderer.scale = this._scale * parent._renderer.scale;
+
+        }
+
+        if (flagTexture) {
+
+          if (!this._renderer.rect) {
+            this._renderer.rect = {};
+          }
+
+          if (!this._renderer.triangles) {
+            this._renderer.triangles = new Two.Array(12);
+          }
+
+          webgl.getBoundingClientRect(this._vertices, this._linewidth, this._renderer.rect);
+          webgl.getTriangles(this._renderer.rect, this._renderer.triangles);
+
+          webgl.updateBuffer(gl, this, program);
+          webgl.updateTexture(gl, this);
+
+        }
+
+        // Draw Texture
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._renderer.textureCoordsBuffer);
+
+        gl.vertexAttribPointer(program.textureCoords, 2, gl.FLOAT, false, 0, 0);
+
+        gl.bindTexture(gl.TEXTURE_2D, this._renderer.texture);
+
+
+        // Draw Rect
+
+        gl.uniformMatrix3fv(program.matrix, false, this._renderer.matrix);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._renderer.buffer);
+
+        gl.vertexAttribPointer(program.position, 2, gl.FLOAT, false, 0, 0);
+
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+        return this.flagReset();
+
+      }
+
+    },
+
     /**
      * Returns the rect of a set of verts. Typically takes vertices that are
      * "centered" around 0 and returns them to be anchored upper-left.
      */
-    getBoundingClientRect: function(vertices, border, curved) {
+    getBoundingClientRect: function(vertices, border, rect) {
 
-      var left = Infinity, right = -Infinity,
-        top = Infinity, bottom = -Infinity;
+      left = Infinity, right = -Infinity;
+      top = Infinity, bottom = -Infinity;
 
       _.each(vertices, function(v, i) {
 
-        var x = v.x, y = v.y, a, b, c, d;
+        x = v.x, y = v.y, a, b, c, d, controls = v.controls;
 
         top = Math.min(y, top);
         left = Math.min(x, left);
         right = Math.max(x, right);
         bottom = Math.max(y, bottom);
 
-        if (!!curved) {
-
-          a = v.u.x, b = v.u.y;
-          c = v.v.x, d = v.v.y;
-
-          top = Math.min(b, d, top);
-          left = Math.min(a, c, left);
-          right = Math.max(a, c, right);
-          bottom = Math.max(b, d, bottom);
-
+        if (!v.controls) {
+          return;
         }
+
+        cl = controls.left;
+        cr = controls.right;
+
+        if (!cl || !cr) {
+          return;
+        }
+
+        a = v._relative ? cl.x + x : cl.x, b = v._relative ? cl.y + y : cl.y;
+        c = v._relative ? cr.x + x : cr.x, d = v._relative ? cr.y + y : cr.y;
+
+        if (!a || !b || !c || !d) {
+          return;
+        }
+
+        top = Math.min(b, d, top);
+        left = Math.min(a, c, left);
+        right = Math.max(a, c, right);
+        bottom = Math.max(b, d, bottom);
 
       });
 
@@ -4059,71 +4464,83 @@ var Backbone = Backbone || {};
         bottom += border;
       }
 
-      var width = right - left;
-      var height = bottom - top;
+      width = right - left;
+      height = bottom - top;
 
-      var centroid = {
-        x: - left,
-        y: - top
-      };
+      rect.top = top;
+      rect.left = left;
+      rect.right = right;
+      rect.bottom = bottom;
+      rect.width = width;
+      rect.height = height;
 
-      return {
-        top: top,
-        left: left,
-        right: right,
-        bottom: bottom,
-        width: width,
-        height: height,
-        centroid: centroid
-      };
+      if (!rect.centroid) {
+        rect.centroid = {};
+      }
+
+      rect.centroid.x = - left;
+      rect.centroid.y = - top;
 
     },
 
-    getTriangles: function(rect) {
-      var top = rect.top,
-        left = rect.left,
-        right = rect.right,
-        bottom = rect.bottom;
-      return new Two.Array([
-        left, top,
-        right, top,
-        left, bottom,
-        left, bottom,
-        right, top,
-        right, bottom
-      ]);
+    getTriangles: function(rect, triangles) {
+
+      top = rect.top;
+      left = rect.left;
+      right = rect.right;
+      bottom = rect.bottom;
+
+      // First Triangle
+
+      triangles[0] = left;
+      triangles[1] = top;
+
+      triangles[2] = right;
+      triangles[3] = top;
+
+      triangles[4] = left;
+      triangles[5] = bottom;
+
+      // Second Triangle
+
+      triangles[6] = left;
+      triangles[7] = bottom;
+
+      triangles[8] = right;
+      triangles[9] = top;
+
+      triangles[10] = right;
+      triangles[11] = bottom;
+
     },
 
     updateCanvas: function(elem) {
 
-      var commands = elem.commands;
-      var canvas = this.canvas;
-      var ctx = this.ctx;
+      commands = elem._vertices;
+      canvas = this.canvas;
+      ctx = this.ctx;
 
       // Styles
 
-      var scale = elem._scale,
-        stroke = elem.stroke,
-        linewidth = elem.linewidth * scale,
-        fill = elem.fill,
-        opacity = elem.opacity,
-        cap = elem.cap,
-        join = elem.join,
-        miter = elem.miter,
-        curved = elem.curved,
-        closed = elem.closed,
-        length = commands.length,
-        last = length - 1;
+      scale = elem._renderer.scale;
+      stroke = elem._stroke;
+      linewidth = elem._linewidth * scale;
+      fill = elem._fill;
+      opacity = elem._opacity;
+      cap = elem._cap;
+      join = elem._join;
+      miter = elem._miter;
+      closed = elem._closed;
+      length = commands.length;
+      last = length - 1;
 
-      canvas.width = Math.max(Math.ceil(elem.rect.width * scale), 1);
-      canvas.height = Math.max(Math.ceil(elem.rect.height * scale), 1);
+      canvas.width = Math.max(Math.ceil(elem._renderer.rect.width * scale), 1);
+      canvas.height = Math.max(Math.ceil(elem._renderer.rect.height * scale), 1);
 
-      var centroid = elem.rect.centroid;
-      var cx = centroid.x * scale, cy = centroid.y * scale;
+      centroid = elem._renderer.rect.centroid;
+      cx = centroid.x * scale, cy = centroid.y * scale;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      // ctx.fillStyle = 'red';
-      // ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       if (fill) {
         ctx.fillStyle = fill;
@@ -4150,40 +4567,64 @@ var Backbone = Backbone || {};
       ctx.beginPath();
       _.each(commands, function(b, i) {
 
-        var x = (b.x * scale + cx).toFixed(3),
-          y = (b.y * scale + cy).toFixed(3);
+        next, prev, a, c, ux, uy, vx, vy, ar, bl, br, cl;
+        x = (b.x * scale + cx).toFixed(3), y = (b.y * scale + cy).toFixed(3);
 
-        if (curved) {
+        switch (b._command) {
 
-          var prev = closed ? mod(i - 1, length) : Math.max(i - 1, 0);
-          var next = closed ? mod(i + 1, length) : Math.min(i + 1, last);
+          case Two.Commands.close:
+            ctx.closePath();
+            break;
 
-          var a = commands[prev];
-          var c = commands[next];
+          case Two.Commands.curve:
 
-          var vx = (a.v.x * scale + cx).toFixed(3);
-          var vy = (a.v.y * scale + cy).toFixed(3);
+            prev = closed ? mod(i - 1, length) : Math.max(i - 1, 0);
+            next = closed ? mod(i + 1, length) : Math.min(i + 1, last);
 
-          var ux = (b.u.x * scale + cx).toFixed(3);
-          var uy = (b.u.y * scale + cy).toFixed(3);
+            a = commands[prev], c = commands[next];
+            ar = (a.controls && a.controls.right) || a;
+            bl = (b.controls && b.controls.left) || b;
 
-          if (i <= 0) {
+            if (a._relative) {
+              vx = ((ar.x + a.x) * scale + cx).toFixed(3);
+              vy = ((ar.y + a.y) * scale + cy).toFixed(3);
+            } else {
+              vx = (ar.x * scale + cx).toFixed(3);
+              vy = (ar.y * scale + cy).toFixed(3);
+            }
 
-            ctx.moveTo(x, y);
-
-          } else {
+            if (b._relative) {
+              ux = ((bl.x + b.x) * scale + cx).toFixed(3);
+              uy = ((bl.y + b.y) * scale + cy).toFixed(3);
+            } else {
+              ux = (bl.x * scale + cx).toFixed(3);
+              uy = (bl.y * scale + cy).toFixed(3);
+            }
 
             ctx.bezierCurveTo(vx, vy, ux, uy, x, y);
 
-            // Add a final point and close it off
-
             if (i >= last && closed) {
 
-              vx = (b.v.x * scale + cx).toFixed(3);
-              vy = (b.v.y * scale + cy).toFixed(3);
+              c = d;
 
-              ux = (c.u.x * scale + cx).toFixed(3);
-              uy = (c.u.y * scale + cy).toFixed(3);
+              br = (b.controls && b.controls.right) || b;
+              cl = (c.controls && c.controls.left) || c;
+
+              if (b._relative) {
+                vx = ((br.x + b.x) * scale + cx).toFixed(3);
+                vy = ((br.y + b.y) * scale + cy).toFixed(3);
+              } else {
+                vx = (br.x * scale + cx).toFixed(3);
+                vy = (br.y * scale + cy).toFixed(3);
+              }
+
+              if (c._relative) {
+                ux = ((cl.x + c.x) * scale + cx).toFixed(3);
+                uy = ((cl.y + c.y) * scale + cx).toFixed(3);
+              } else {
+                ux = (cl.x * scale + cx).toFixed(3);
+                uy = (cl.y * scale + cy).toFixed(3);
+              }
 
               x = (c.x * scale + cx).toFixed(3);
               y = (c.y * scale + cy).toFixed(3);
@@ -4192,22 +4633,24 @@ var Backbone = Backbone || {};
 
             }
 
-          }
+            break;
 
-        } else {
-
-          if (i <= 0) {
-            ctx.moveTo(x, y);
-          } else {
+          case Two.Commands.line:
             ctx.lineTo(x, y);
-          }
+            break;
+
+          case Two.Commands.move:
+            d = b;
+            ctx.moveTo(x, y);
+            break;
 
         }
+
       });
 
       // Loose ends
 
-      if (closed && !curved) {
+      if (closed) {
         ctx.closePath();
       }
 
@@ -4220,14 +4663,14 @@ var Backbone = Backbone || {};
 
       this.updateCanvas(elem);
 
-      if (elem.texture) {
-        gl.deleteTexture(elem.texture);
+      if (elem._renderer.texture) {
+        gl.deleteTexture(elem._renderer.texture);
       }
 
-      gl.bindBuffer(gl.ARRAY_BUFFER, elem.textureCoordsBuffer);
+      gl.bindBuffer(gl.ARRAY_BUFFER, elem._renderer.textureCoordsBuffer);
 
-      elem.texture = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, elem.texture);
+      elem._renderer.texture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, elem._renderer.texture);
 
       // Set the parameters so we can render any size image.
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -4248,24 +4691,24 @@ var Backbone = Backbone || {};
 
     updateBuffer: function(gl, elem, program) {
 
-      if (_.isObject(elem.buffer)) {
-        gl.deleteBuffer(elem.buffer);
+      if (_.isObject(elem._renderer.buffer)) {
+        gl.deleteBuffer(elem._renderer.buffer);
       }
 
-      elem.buffer = gl.createBuffer();
+      elem._renderer.buffer = gl.createBuffer();
 
-      gl.bindBuffer(gl.ARRAY_BUFFER, elem.buffer);
+      gl.bindBuffer(gl.ARRAY_BUFFER, elem._renderer.buffer);
       gl.enableVertexAttribArray(program.position);
 
-      gl.bufferData(gl.ARRAY_BUFFER, elem.triangles, gl.STATIC_DRAW);
+      gl.bufferData(gl.ARRAY_BUFFER, elem._renderer.triangles, gl.STATIC_DRAW);
 
-      if (_.isObject(elem.textureCoordsBuffer)) {
-        gl.deleteBuffer(elem.textureCoordsBuffer);
+      if (_.isObject(elem._renderer.textureCoordsBuffer)) {
+        gl.deleteBuffer(elem._renderer.textureCoordsBuffer);
       }
 
-      elem.textureCoordsBuffer = gl.createBuffer();
+      elem._renderer.textureCoordsBuffer = gl.createBuffer();
 
-      gl.bindBuffer(gl.ARRAY_BUFFER, elem.textureCoordsBuffer);
+      gl.bindBuffer(gl.ARRAY_BUFFER, elem._renderer.textureCoordsBuffer);
       gl.enableVertexAttribArray(program.textureCoords);
 
       gl.bufferData(gl.ARRAY_BUFFER, this.uv, gl.STATIC_DRAW);
@@ -4276,13 +4719,13 @@ var Backbone = Backbone || {};
 
       create: function(gl, shaders) {
 
-        var program = gl.createProgram();
+        program = gl.createProgram();
         _.each(shaders, function(s) {
           gl.attachShader(program, s);
         });
 
         gl.linkProgram(program);
-        var linked = gl.getProgramParameter(program, gl.LINK_STATUS);
+        linked = gl.getProgramParameter(program, gl.LINK_STATUS);
         if (!linked) {
           error = gl.getProgramInfoLog(program);
           gl.deleteProgram(program);
@@ -4299,13 +4742,13 @@ var Backbone = Backbone || {};
 
       create: function(gl, source, type) {
 
-        var shader = gl.createShader(gl[type]);
+        shader = gl.createShader(gl[type]);
         gl.shaderSource(shader, source);
         gl.compileShader(shader);
 
-        var compiled = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
+        compiled = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
         if (!compiled) {
-          var error = gl.getShaderInfoLog(shader);
+          error = gl.getShaderInfoLog(shader);
           gl.deleteShader(shader);
           throw new Two.Utils.Error('unable to compile shader ' + shader + ': ' + error);
         }
@@ -4329,7 +4772,7 @@ var Backbone = Backbone || {};
         'varying vec2 v_textureCoords;',
         '',
         'void main() {',
-        '   vec2 projected = (u_matrix * vec3(a_position, 1)).xy;',
+        '   vec2 projected = (u_matrix * vec3(a_position, 1.0)).xy;',
         '   vec2 normal = projected / u_resolution;',
         '   vec2 clipspace = (normal * 2.0) - 1.0;',
         '',
@@ -4357,25 +4800,32 @@ var Backbone = Backbone || {};
 
   var Renderer = Two[Two.Types.webgl] = function(options) {
 
-    this.count = 0;
-    this.domElement = document.createElement('canvas');
-
-    this.elements = [];
+    this.domElement = options.domElement || document.createElement('canvas');
 
     // Everything drawn on the canvas needs to come from the stage.
-    this.stage = null;
+    this.scene = new Two.Group();
+    this.scene.parent = this;
+
+    this._renderer = {
+      matrix: new Two.Array(identity),
+      scale: 1
+    };
+    this._flagMatrix = true;
 
     // http://games.greggman.com/game/webgl-and-alpha/
     // http://www.khronos.org/registry/webgl/specs/latest/#5.2
-    var params = _.defaults(options || {}, {
+    params = _.defaults(options || {}, {
       antialias: false,
       alpha: true,
       premultipliedAlpha: true,
       stencil: true,
-      preserveDrawingBuffer: false
+      preserveDrawingBuffer: true,
+      overdraw: false
     });
 
-    var gl = this.ctx = this.domElement.getContext('webgl', params) || 
+    this.overdraw = params.overdraw;
+
+    gl = this.ctx = this.domElement.getContext('webgl', params) || 
       this.domElement.getContext('experimental-webgl', params);
 
     if (!this.ctx) {
@@ -4384,9 +4834,9 @@ var Backbone = Backbone || {};
     }
 
     // Compile Base Shaders to draw in pixel space.
-    var vs = webgl.shaders.create(
+    vs = webgl.shaders.create(
       gl, webgl.shaders.vertex, webgl.shaders.types.vertex);
-    var fs = webgl.shaders.create(
+    fs = webgl.shaders.create(
       gl, webgl.shaders.fragment, webgl.shaders.types.fragment);
 
     this.program = webgl.program.create(gl, [vs, fs]);
@@ -4404,40 +4854,43 @@ var Backbone = Backbone || {};
 
     // Setup some initial statements of the gl context
     gl.enable(gl.BLEND);
+    // https://code.google.com/p/chromium/issues/detail?id=316393
+    // gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, gl.TRUE);
     gl.blendEquationSeparate(gl.FUNC_ADD, gl.FUNC_ADD);
     gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA,
       gl.ONE, gl.ONE_MINUS_SRC_ALPHA );
 
   };
 
-  _.extend(Renderer, {
+  _.extend(Renderer.prototype, Backbone.Events, {
 
-    Group: Group,
+    setSize: function(width, height, ratio) {
 
-    Element: Element,
+      this.width = width;
+      this.height = height;
 
-    getStyles: getStyles,
+      this.ratio = _.isUndefined(ratio) ? getRatio(this.ctx) : ratio;
 
-    setStyles: setStyles
+      this.domElement.width = width * this.ratio;
+      this.domElement.height = height * this.ratio;
 
-  });
+      _.extend(this.domElement.style, {
+        width: width + 'px',
+        height: height + 'px'
+      });
 
-  _.extend(Renderer.prototype, Backbone.Events, CanvasRenderer.prototype, {
+      width *= this.ratio;
+      height *= this.ratio;
 
-    setSize: function(width, height) {
+      // Set for this.stage parent scaling to account for HDPI
+      this._renderer.matrix[0] = this._renderer.matrix[4]
+        = this._renderer.scale = this.ratio;
 
-      CanvasRenderer.prototype.setSize.apply(this, arguments);
-
-      /**
-       * TODO: Support for high dpi rendering like /src/renderers/canvas.js
-       */
-      this.ratio = 1;
-      this.domElement.width = width;
-      this.domElement.height = height;
+      this._flagMatrix = true;
 
       this.ctx.viewport(0, 0, width, height);
 
-      var resolutionLocation = this.ctx.getUniformLocation(
+      resolutionLocation = this.ctx.getUniformLocation(
         this.program, 'u_resolution');
       this.ctx.uniform2f(resolutionLocation, width, height);
 
@@ -4447,13 +4900,14 @@ var Backbone = Backbone || {};
 
     render: function() {
 
-      if (_.isNull(this.stage)) {
-        return this;
+      gl = this.ctx;
+
+      if (!this.overdraw) {
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       }
 
-      // Draw a green rectangle
-
-      this.stage.render(this.ctx, this.program);
+      webgl.group.render.call(this.scene, gl, this.program);
+      this._flagMatrix = false;
 
       return this;
 
@@ -4461,204 +4915,165 @@ var Backbone = Backbone || {};
 
   });
 
-  function getStyles(o) {
-
-    var styles = {},
-      id = o.id,
-      matrix = o._matrix,
-      stroke = o.stroke,
-      linewidth = o.linewidth,
-      fill = o.fill,
-      opacity = o.opacity,
-      visible = o.visible,
-      cap = o.cap,
-      join = o.join,
-      miter = o.miter,
-      curved = o.curved,
-      closed = o.closed,
-      vertices = o.vertices;
-
-    if (id) {
-      styles.id = id;
-    }
-    if (_.isObject(matrix)) {
-      styles.matrix = styles._matrix = matrix.toArray(true);
-      styles.scale = styles._scale = 1;
-    }
-    if (stroke) {
-      styles.stroke = stroke;
-    }
-    if (fill) {
-      styles.fill = fill;
-    }
-    if (_.isNumber(opacity)) {
-      styles.opacity = opacity;
-    }
-    if (cap) {
-      styles.cap = cap;
-    }
-    if (join) {
-      styles.join = join;
-    }
-    if (miter) {
-      styles.miter = miter;
-    }
-    if (linewidth) {
-      styles.linewidth = linewidth;
-    }
-    if (vertices) {
-      styles.vertices = getCommands(vertices, curved, closed);
-      styles.commands = styles.vertices;
-      styles.rect = webgl.getBoundingClientRect(styles.commands, styles.linewidth, styles.curved);
-      styles.triangles = webgl.getTriangles(styles.rect);
-    }
-    styles.visible = !!visible;
-    styles.curved = !!curved;
-    styles.closed = !!closed;
-
-    // Update buffer and texture
-
-    if (o instanceof Two.Polygon) {
-      webgl.updateBuffer(this.ctx, styles, this.program);
-      Element.prototype.updateTexture.call(styles, this.ctx);
-    }
-
-    return styles;
-
-  }
-
-  function setStyles(elem, property, value, closed, curved, strokeChanged) {
-
-    var textureNeedsUpdate = false;
-
-    if (/matrix/.test(property)) {
-      elem[property] = value.toArray(true);
-      if (_.isNumber(closed)) {
-        textureNeedsUpdate = elem.scale !== closed;
-        elem.scale = closed;
-      }
-      elem.updateMatrix();
-    } else if (/(stroke|fill|opacity|cap|join|miter|linewidth)/.test(property)) {
-      elem[property] = value;
-      elem.rect = expand(webgl.getBoundingClientRect(elem.commands, elem.linewidth, elem.curved), elem.rect);
-      elem.triangles = webgl.getTriangles(elem.rect);
-      webgl.updateBuffer(this.ctx, elem, this.program);
-      textureNeedsUpdate = true;
-    } else if (property === 'vertices') {
-      if (!_.isUndefined(closed)) {
-        elem.closed = closed;
-      }
-      if (!_.isUndefined(curved)) {
-        elem.curved = curved;
-      }
-      if (strokeChanged) {
-        elem.commands = getCommands(value, elem.curved, elem.closed);
-      } else {
-        elem.vertices = getCommands(value, elem.curved, elem.closed);
-        elem.commands = elem.vertices;
-      }
-      elem.rect = expand(webgl.getBoundingClientRect(elem.vertices, elem.linewidth, elem.curved), elem.rect);
-      elem.triangles = webgl.getTriangles(elem.rect);
-      webgl.updateBuffer(this.ctx, elem, this.program);
-      textureNeedsUpdate = true;
-    } else {
-      elem[property] = value;
-    }
-
-    if (textureNeedsUpdate) {
-      elem.updateTexture(this.ctx);
-    }
-
-  }
-
-  function expand(r1, r2) {
-
-    var top = Math.min(r1.top, r2.top),
-      left = Math.min(r1.left, r2.left),
-      right = Math.max(r1.right, r2.right),
-      bottom = Math.max(r1.bottom, r2.bottom);
-
-    var width = right - left;
-    var height = bottom - top;
-    var centroid = {
-      x: - left,
-      y: - top
-    };
-
-    return {
-      top: top,
-      left: left,
-      right: right,
-      bottom: bottom,
-      width: width,
-      height: height,
-      centroid: centroid
-    };
-
-  }
-
 })();
+
 (function() {
 
+  // Localized variables
+  var zero = Two.Vector.zero, clone;
+
   var Shape = Two.Shape = function(limited) {
+
+    // Private object for renderer specific variables.
+    this._renderer = {};
+
+    this.id = Two.Identifier + Two.uniqueId();
 
     // Define matrix properties which all inherited
     // objects of Shape have.
 
     this._matrix = new Two.Matrix();
 
-    var updateMatrix = _.debounce(_.bind(function() {
-      var transform = this._matrix
-        .identity()
-        .translate(this.translation.x, this.translation.y)
-        .scale(this.scale)
-        .rotate(this.rotation);
-        // .multiply.apply(this._matrix, this.matrix.elements);
-      this.trigger(Two.Events.change, this.id, 'matrix', transform, this.scale);
-    }, this), 0);
-
-    this._rotation = 0;
-
-    Object.defineProperty(this, 'rotation', {
-      get: function() {
-        return this._rotation;
-      },
-      set: function(v) {
-        this._rotation = v;
-        updateMatrix();
-      }
-    });
-
-    this._scale = 'scale';
-
-    Object.defineProperty(this, 'scale', {
-      get: function() {
-        return this._scale;
-      },
-      set: function(v) {
-        this._scale = v;
-        updateMatrix();
-      }
-    });
-
     this.translation = new Two.Vector();
-    this.rotation = 0.0;
-    this.scale = 1.0;
+    this.translation.bind(Two.Events.change, _.bind(Shape.FlagMatrix, this));
+    this.rotation = 0;
+    this.scale = 1;
 
-    this.translation.bind(Two.Events.change, updateMatrix);
+  };
 
-    // Add a public matrix for advanced transformations.
-    // Only edit this if you're a *boss*
-    // this.matrix = new Two.Matrix();
-    // this.matrix.bind(Two.Events.change, updateMatrix);
+  _.extend(Shape, Backbone.Events, {
 
-    if (!!limited) {
-      return this;
+    FlagMatrix: function() {
+      this._flagMatrix = true;
+    },
+
+    MakeObservable: function(object) {
+
+      Object.defineProperty(object, 'rotation', {
+        get: function() {
+          return this._rotation;
+        },
+        set: function(v) {
+          this._rotation = v;
+          this._flagMatrix = true;
+        }
+      });
+
+      Object.defineProperty(object, 'scale', {
+        get: function() {
+          return this._scale;
+        },
+        set: function(v) {
+          this._scale = v;
+          this._flagMatrix = true;
+          this._flagScale = true;
+        }
+      });
+
     }
 
-    // Style properties
+  });
 
-    Shape.MakeGetterSetter(this, Shape.Properties);
+  _.extend(Shape.prototype, {
+
+    // Flags
+
+    _flagMatrix: true,
+
+    // Underlying Properties
+
+    _rotation: 0,
+    _scale: 1,
+
+    addTo: function(group) {
+      group.add(this);
+      return this;
+    },
+
+    clone: function() {
+      clone = new Shape();
+      clone.translation.copy(this.translation);
+      clone.rotation = this.rotation;
+      clone.scale = this.scale;
+      _.each(Shape.Properties, function(k) {
+        clone[k] = this[k];
+      }, this);
+      return clone._update();
+    },
+
+    /**
+     * To be called before render that calculates and collates all information
+     * to be as up-to-date as possible for the render. Called once a frame.
+     */
+    _update: function() {
+
+      if (!this._matrix.manual && this._flagMatrix) {
+
+        this._matrix
+          .identity()
+          .translate(this.translation.x, this.translation.y)
+          .scale(this.scale)
+          .rotate(this.rotation);
+
+      }
+
+      // Bubble up to parents mainly for `getBoundingClientRect` method.
+      if (this.parent && _.isFunction(this.parent._update)) {
+        this.parent._update();
+      }
+
+      return this;
+
+    },
+
+    flagReset: function() {
+
+      this._flagMatrix = false;
+      this._flagScale = false;
+
+      return this;
+
+    }
+
+  });
+
+  Shape.MakeObservable(Shape.prototype);
+
+})();
+
+(function() {
+
+  /**
+   * Constants
+   */
+
+  var min = Math.min, max = Math.max, round = Math.round,
+    getComputedMatrix = Two.Utils.getComputedMatrix;
+
+  // Localized variables
+  var l, ia, ib, last, closed, v, i, parent, points, clone, rect, corner,
+    border, temp, left, right, top, bottom, x, y, a, b, c, d, m, matrix, curved,
+    x1, y1, x2, y2, x3, y3, x4, y4;
+
+  var commands = {};
+
+  _.each(Two.Commands, function(v, k) {
+    commands[k] = new RegExp(v);
+  });
+
+  var Polygon = Two.Polygon = function(vertices, closed, curved, manual) {
+
+    Two.Shape.call(this);
+
+    this._renderer.type = 'polygon';
+
+    this._closed = !!closed;
+    this._curved = !!curved;
+
+    this.beginning = 0;
+    this.ending = 1;
+
+    // Style properties
 
     this.fill = '#fff';
     this.stroke = '#000';
@@ -4666,13 +5081,21 @@ var Backbone = Backbone || {};
     this.opacity = 1.0;
     this.visible = true;
 
-    this.cap = 'round';
-    this.join = 'round';
-    this.miter = 1;
+    this.cap = 'butt';      // Default of Adobe Illustrator
+    this.join = 'miter';    // Default of Adobe Illustrator
+    this.miter = 4;         // Default of Adobe Illustrator
+
+    this._vertices = [];
+    this.vertices = vertices;
+
+    // Determines whether or not two.js should calculate curves, lines, and
+    // commands automatically for you or to let the developer manipulate them
+    // for themselves.
+    this.automatic = !manual;
 
   };
 
-  _.extend(Shape, {
+  _.extend(Polygon, {
 
     Properties: [
       'fill',
@@ -4682,28 +5105,145 @@ var Backbone = Backbone || {};
       'visible',
       'cap',
       'join',
-      'miter'
+      'miter',  // Order matters here! See LN:388
+
+      'closed',
+      'curved',
+      'automatic',
+      'beginning',
+      'ending'
     ],
 
-    MakeGetterSetter: function(shape, properties) {
+    FlagVertices: function() {
+      this._flagVertices = true;
+    },
 
-      if (!_.isArray(properties)) {
-        properties = [properties];
-      }
+    MakeObservable: function(object) {
 
-      _.each(properties, function(k) {
+      Two.Shape.MakeObservable(object);
 
-        var secret = '_' + k;
+      // Only the first 8 properties are flagged like this. The subsequent
+      // properties behave differently and need to be hand written.
+      _.each(Polygon.Properties.slice(0, 8), function(property) {
 
-        Object.defineProperty(shape, k, {
+        var secret = '_' + property;
+        var flag = '_flag' + property.charAt(0).toUpperCase() + property.slice(1);
+
+        Object.defineProperty(object, property, {
           get: function() {
             return this[secret];
           },
           set: function(v) {
             this[secret] = v;
-            this.trigger(Two.Events.change, this.id, k, v, this);
+            this[flag] = true;
           }
         });
+
+      });
+
+      Object.defineProperty(object, 'closed', {
+        get: function() {
+          return this._closed;
+        },
+        set: function(v) {
+          this._closed = !!v;
+          this._flagVertices = true;
+        }
+      });
+
+      Object.defineProperty(object, 'curved', {
+        get: function() {
+          return this._curved;
+        },
+        set: function(v) {
+          this._curved = !!v;
+          this._flagVertices = true;
+        }
+      });
+
+      Object.defineProperty(Polygon.prototype, 'automatic', {
+        get: function() {
+          return this._automatic;
+        },
+        set: function(v) {
+          if (v === this._automatic) {
+            return;
+          }
+          this._automatic = !!v;
+          method = this._automatic ? 'ignore' : 'listen';
+          _.each(this.vertices, function(v) {
+            v[method]();
+          });
+        }
+      });
+
+      Object.defineProperty(object, 'beginning', {
+        get: function() {
+          return this._beginning;
+        },
+        set: function(v) {
+          this._beginning = min(max(v, 0.0), this._ending);
+          this._flagVertices = true;
+        }
+      });
+
+      Object.defineProperty(object, 'ending', {
+        get: function() {
+          return this._ending;
+        },
+        set: function(v) {
+          this._ending = min(max(v, this._beginning), 1.0);
+          this._flagVertices = true;
+        }
+      });
+
+      Object.defineProperty(object, 'vertices', {
+
+        get: function() {
+          return this._collection;
+        },
+
+        set: function(vertices) {
+
+          var updateVertices = _.bind(Polygon.FlagVertices, this);
+
+          var bindVerts = _.bind(function(items) {
+
+            _.each(items, function(v) {
+              v.bind(Two.Events.change, updateVertices);
+            }, this);
+
+            updateVertices();
+
+          }, this);
+
+          var unbindVerts = _.bind(function(items) {
+
+            _.each(items, function(v) {
+              v.unbind(Two.Events.change, updateVertices);
+            }, this);
+
+            updateVertices();
+
+          }, this);
+
+          // Remove previous listeners
+          if (this._collection) {
+            this._collection.unbind();
+          }
+
+          // Create new Collection with copy of vertices
+          this._collection = new Two.Utils.Collection(vertices.slice(0));
+
+          // Listen for Collection changes and bind / unbind
+          this._collection.bind(Two.Events.insert, bindVerts);
+          this._collection.bind(Two.Events.remove, unbindVerts);
+
+          // Bind Initial Vertices
+          verticesChanged = true;
+          bindVerts(this._collection);
+
+        }
 
       });
 
@@ -4711,11 +5251,83 @@ var Backbone = Backbone || {};
 
   });
 
-  _.extend(Shape.prototype, Backbone.Events, {
+  _.extend(Polygon.prototype, Two.Shape.prototype, {
 
-    addTo: function(group) {
-      group.add(this);
-      return this;
+    // Flags
+    // http://en.wikipedia.org/wiki/Flag
+
+    _flagVertices: true,
+
+    _flagFill: true,
+    _flagStroke: true,
+    _flagLinewidth: true,
+    _flagOpacity: true,
+    _flagVisible: true,
+
+    _flagCap: true,
+    _flagJoin: true,
+    _flagMiter: true,
+
+    // Underlying Properties
+
+    _fill: '#fff',
+    _stroke: '#000',
+    _linewidth: 1.0,
+    _opacity: 1.0,
+    _visible: true,
+
+    _cap: 'round',
+    _join: 'round',
+    _miter: 4,
+
+    _closed: true,
+    _curved: false,
+    _automatic: true,
+    _beginning: 0,
+    _ending: 1.0,
+
+    clone: function(parent) {
+
+      parent = parent || this.parent;
+
+      points = _.map(this.vertices, function(v) {
+        return v.clone();
+      });
+
+      clone = new Polygon(points, this.closed, this.curved, !this.automatic);
+
+      _.each(Two.Shape.Properties, function(k) {
+        clone[k] = this[k];
+      }, this);
+
+      clone.translation.copy(this.translation);
+      clone.rotation = this.rotation;
+      clone.scale = this.scale;
+
+      parent.add(clone);
+
+      return clone;
+
+    },
+
+    toObject: function() {
+
+      var result = {
+        vertices: _.map(this.vertices, function(v) {
+          return v.toObject();
+        })
+      };
+
+      _.each(Two.Shape.Properties, function(k) {
+        result[k] = this[k];
+      }, this);
+
+      result.translation = this.translation.toObject;
+      result.rotation = this.rotation;
+      result.scale = this.scale;
+
+      return result;
+
     },
 
     noFill: function() {
@@ -4728,444 +5340,21 @@ var Backbone = Backbone || {};
       return this;
     },
 
-    clone: function() {
-      var clone = new Shape();
-      clone.translation.copy(this.translation);
-      _.each(Shape.Properties, function(k) {
-        clone[k] = this[k];
-      }, this);
-      return this;
-    }
-
-  });
-
-})();
-(function() {
-
-  var Group = Two.Group = function(o) {
-
-    Two.Shape.call(this, true);
-
-    delete this.stroke;
-    delete this.fill;
-    delete this.linewidth;
-    delete this.opacity;
-
-    delete this.cap;
-    delete this.join;
-    delete this.miter;
-
-    Group.MakeGetterSetter(this, Two.Shape.Properties);
-
-    this.children = {};
-
-  };
-
-  _.extend(Group, {
-
-    MakeGetterSetter: function(group, properties) {
-
-      if (!_.isArray(properties)) {
-        properties = [properties];
-      }
-
-      _.each(properties, function(k) {
-
-        var secret = '_' + k;
-
-        Object.defineProperty(group, k, {
-          get: function() {
-            return this[secret];
-          },
-          set: function(v) {
-            this[secret] = v;
-            _.each(this.children, function(child) { // Trickle down styles
-              child[k] = v;
-            });
-          }
-        });
-
-      });
-
-    }
-
-  });
-
-  _.extend(Group.prototype, Two.Shape.prototype, {
-
-    /**
-     * Group has a gotcha in that it's at the moment required to be bound to
-     * an instance of two in order to add elements correctly. This needs to
-     * be rethought and fixed.
-     */
-    clone: function(parent) {
-
-      parent = parent || this.parent;
-
-      var children = _.map(this.children, function(child) {
-        return child.clone(parent);
-      });
-
-      var group = new Group();
-      parent.add(group);
-      group.add(children);
-
-      group.translation.copy(this.translation);
-      group.rotation = this.rotation;
-      group.scale = this.scale;
-
-      return group;
-
-    },
-
-    /**
-     * Anchor all children to the upper left hand corner
-     * of the group.
-     */
-    corner: function() {
-
-      var rect = this.getBoundingClientRect(true);
-      var corner = { x: rect.left, y: rect.top };
-
-      _.each(this.children, function(child) {
-        child.translation.subSelf(corner);
-      });
-
-      return this;
-
-    },
-
-    /**
-     * Anchors all children around the center of the group,
-     * effectively placing the shape around the unit circle.
-     */
-    center: function() {
-
-      var rect = this.getBoundingClientRect(true);
-
-      rect.centroid = {
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2
-      };
-
-      _.each(this.children, function(child) {
-        child.translation.subSelf(rect.centroid);
-      });
-
-      // this.translation.copy(rect.centroid);
-
-      return this;
-
-    },
-
-    /**
-     * Add an object to the group.
-     */
-    add: function(o) {
-
-      var l = arguments.length,
-        objects = o,
-        children = this.children,
-        grandparent = this.parent,
-        ids = [];
-
-      if (!_.isArray(o)) {
-        objects = _.toArray(arguments);
-      }
-
-      // A bubbled up version of 'change' event for the children.
-
-      var broadcast = _.bind(function(id, property, value, closed, curved, strokeChanged) {
-        this.trigger(Two.Events.change, id, property, value, closed, curved, strokeChanged);
-      }, this);
-
-      // Add the objects
-
-      _.each(objects, function(object) {
-
-        var id = object.id, parent = object.parent;
-
-        if (_.isUndefined(id)) {
-          grandparent.add(object);
-          id = object.id;
-        }
-
-        if (_.isUndefined(children[id])) {
-          // Release object from previous parent.
-          if (parent) {
-            delete parent.children[id];
-          }
-          // Add it to this group and update parent-child relationship.
-          children[id] = object;
-          object.parent = this;
-          object.unbind(Two.Events.change)
-            .bind(Two.Events.change, broadcast);
-          ids.push(id);
-        }
-
-      }, this);
-
-      if (ids.length > 0) {
-        this.trigger(Two.Events.change, this.id, Two.Properties.hierarchy, ids);
-      }
-
-      return this;
-      // return this.center();
-
-    },
-
-    /**
-     * Remove an object from the group.
-     */
-    remove: function(o) {
-
-      var l = arguments.length,
-        objects = o,
-        children = this.children,
-        grandparent = this.parent,
-        ids = [];
-
-      if (l <= 0 && grandparent) {
-        grandparent.remove(this);
-        return this;
-      }
-
-      if (!_.isArray(o)) {
-        objects = _.toArray(arguments);
-      }
-
-      _.each(objects, function(object) {
-
-        var id = object.id, grandchildren = object.children;
-
-        if (!(id in children)) {
-          return;
-        }
-
-        delete children[id];
-        delete object.parent;
-        object.unbind(Two.Events.change);
-
-        ids.push(id);
-
-      });
-
-      if (ids.length > 0) {
-        this.trigger(Two.Events.change, this.id, Two.Properties.demotion, ids);
-      }
-
-      return this;
-      // return this.center();
-
-    },
-
-    /**
-     * Return an object with top, left, right, bottom, width, and height
-     * parameters of the group.
-     *
-     * TODO: Make a shallow and a deep request.
-     */
-    getBoundingClientRect: function(shallow) {
-
-      var left = Infinity, right = -Infinity,
-        top = Infinity, bottom = -Infinity;
-
-      _.each(this.children, function(child) {
-
-        var rect = child.getBoundingClientRect(true);
-
-        if (!top || !left || !right || !bottom) {
-          return;
-        }
-
-        top = Math.min(rect.top, top);
-        left = Math.min(rect.left, left);
-        right = Math.max(rect.right, right);
-        bottom = Math.max(rect.bottom, bottom);
-
-      }, this);
-
-      var matrix = !!shallow ? this._matrix : Two.Utils.getComputedMatrix(this);
-
-      var ul = matrix.multiply(left, top, 1);
-      var ll = matrix.multiply(right, bottom, 1);
-
-      return {
-        top: ul.y,
-        left: ul.x,
-        right: ll.x,
-        bottom: ll.y,
-        width: ll.x - ul.x,
-        height: ll.y - ul.y
-      };
-
-    },
-
-    /**
-     * Trickle down of noFill
-     */
-    noFill: function() {
-      _.each(this.children, function(child) {
-        child.noFill();
-      });
-      return this;
-    },
-
-    /**
-     * Trickle down of noStroke
-     */
-    noStroke: function() {
-      _.each(this.children, function(child) {
-        child.noStroke();
-      });
-      return this;
-    }
-
-  });
-
-})();
-
-(function() {
-
-  /**
-   * Constants
-   */
-
-  var min = Math.min, max = Math.max, round = Math.round;
-
-  var Polygon = Two.Polygon = function(vertices, closed, curved) {
-
-    Two.Shape.call(this);
-
-    // Further getter setters for Polygon for closed and curved properties
-
-    // Add additional logic for watching the vertices.
-
-    closed = !!closed;
-    curved = !!curved;
-    
-    var beginning = 0.0;
-    var ending = 1.0;
-    var strokeChanged = false;
-    var renderedVertices = vertices.slice(0);
-
-    var updateVertices = _.debounce(_.bind(function(property) { // Call only once a frame.
-
-      var l, ia, ib, last;
-
-      if (strokeChanged) {
-
-        l = this.vertices.length;
-        last = l - 1;
-
-        ia = round((beginning) * last);
-        ib = round((ending) * last);
-
-        renderedVertices.length = 0;
-
-        for (var i = ia; i < ib + 1; i++) {
-          var v = this.vertices[i];
-          renderedVertices.push(new Two.Vector(v.x, v.y));
-        }
-
-      }
-
-      this.trigger(Two.Events.change,
-        this.id, 'vertices', renderedVertices, closed, curved, strokeChanged);
-
-      strokeChanged = false;
-
-    }, this), 0);
-
-    Object.defineProperty(this, 'closed', {
-      get: function() {
-        return closed;
-      },
-      set: function(v) {
-        closed = !!v;
-        updateVertices();
-      }
-    });
-
-    Object.defineProperty(this, 'curved', {
-      get: function() {
-        return curved;
-      },
-      set: function(v) {
-        curved = !!v;
-        updateVertices();
-      }
-    });
-
-    Object.defineProperty(this, 'beginning', {
-      get: function() {
-        return beginning;
-      },
-      set: function(v) {
-        beginning = min(max(v, 0.0), 1.0);
-        strokeChanged = true;
-        updateVertices();
-      }
-    });
-
-    Object.defineProperty(this, 'ending', {
-      get: function() {
-        return ending;
-      },
-      set: function(v) {
-        ending = min(max(v, 0.0), 1);
-        strokeChanged = true;
-        updateVertices();
-      }
-    });
-
-    // At the moment cannot alter the array itself, just it's points.
-
-    this.vertices = vertices.slice(0);
-
-    _.each(this.vertices, function(v) {
-
-      v.bind(Two.Events.change, updateVertices);
-
-    }, this);
-
-    updateVertices();
-
-  };
-
-  _.extend(Polygon.prototype, Two.Shape.prototype, {
-
-    clone: function() {
-
-      var points = _.map(this.vertices, function(v) {
-        return new Two.Vector(v.x, v.y);
-      });
-
-      var clone = new Polygon(points, this.closed, this.curved);
-
-      _.each(Two.Shape.Properties, function(k) {
-        clone[k] = this[k];
-      }, this);
-
-      clone.translation.copy(this.translation);
-      clone.rotation = this.rotation;
-      clone.scale = this.scale;
-
-      return clone;
-
-    },
-
     /**
      * Orient the vertices of the shape to the upper lefthand
      * corner of the polygon.
      */
     corner: function() {
 
-      var rect = this.getBoundingClientRect(true);
-      var corner = { x: rect.left, y: rect.top };
+      rect = this.getBoundingClientRect(true);
+
+      rect.centroid = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2
+      };
 
       _.each(this.vertices, function(v) {
-        v.subSelf(corner);
+        v.addSelf(rect.centroid);
       });
 
       return this;
@@ -5178,7 +5367,7 @@ var Backbone = Backbone || {};
      */
     center: function() {
 
-      var rect = this.getBoundingClientRect(true);
+      rect = this.getBoundingClientRect(true);
 
       rect.centroid = {
         x: rect.left + rect.width / 2,
@@ -5211,45 +5400,564 @@ var Backbone = Backbone || {};
     },
 
     /**
-     * TODO: Make a shallow and a deep request.
+     * Return an object with top, left, right, bottom, width, and height
+     * parameters of the group.
      */
     getBoundingClientRect: function(shallow) {
 
-      var border = this.linewidth;
-      var left = Infinity, right = -Infinity,
-        top = Infinity, bottom = -Infinity;
+      // TODO: Update this to not __always__ update. Just when it needs to.
+      this._update();
 
-      _.each(this.vertices, function(v) {
-        var x = v.x, y = v.y;
-        top = Math.min(y, top);
-        left = Math.min(x, left);
-        right = Math.max(x, right);
-        bottom = Math.max(y, bottom);
+      matrix = !!shallow ? this._matrix : getComputedMatrix(this);
+
+      border = this.linewidth / 2, temp;
+      left = Infinity, right = -Infinity;
+      top = Infinity, bottom = -Infinity;
+
+      _.each(this._vertices, function(v) {
+        x = v.x, y = v.y;
+        v = matrix.multiply(x, y , 1);
+        top = min(v.y - border, top);
+        left = min(v.x - border, left);
+        right = max(v.x + border, right);
+        bottom = max(v.y + border, bottom);
       });
 
-      // Expand borders
-
-      top -= border;
-      left -= border;
-      right += border;
-      bottom += border;
-
-      var matrix = !!shallow ? this._matrix : Two.Utils.getComputedMatrix(this);
-
-      var ul = matrix.multiply(left, top, 1);
-      var ll = matrix.multiply(right, bottom, 1);
-
       return {
-        top: ul.y,
-        left: ul.x,
-        right: ll.x,
-        bottom: ll.y,
-        width: ll.x - ul.x,
-        height: ll.y - ul.y
+        top: top,
+        left: left,
+        right: right,
+        bottom: bottom,
+        width: right - left,
+        height: bottom - top
       };
+
+    },
+
+    /**
+     * Based on closed / curved and sorting of vertices plot where all points
+     * should be and where the respective handles should be too.
+     */
+    plot: function() {
+
+      if (this.curved) {
+        Two.Utils.getCurveFromPoints(this._vertices, this.closed);
+        return this;
+      }
+
+      _.each(this._vertices, function(p, i) {
+        p._command = i === 0 ? Two.Commands.move : Two.Commands.line;
+      }, this);
+
+      return this;
+
+    },
+
+    subdivide: function(limit) {
+
+      this._update();
+
+      last = this.vertices.length - 1;
+      b = this.vertices[last];
+      closed = this._closed || this.vertices[last]._command === Two.Commands.close;
+      curved = this._curved;
+      points = [];
+
+      _.each(this.vertices, function(a, i) {
+
+        if (i <= 0 && !closed) {
+          b = a;
+          return;
+        }
+
+        if (a.command === Two.Commands.move) {
+          points.push(new Two.Anchor(b.x, b.y));
+          if (i > 0) {
+            points[points.length - 1].command = Two.Commands.line;
+          }
+          b = m = a;
+          return;
+        }
+
+        var verts = getSubdivisions(a, b, limit);
+        points = points.concat(verts);
+
+        // Assign commands to all the verts
+        _.each(verts, function(v, i) {
+          if (i <= 0 && b.command === Two.Commands.move) {
+            v.command = Two.Commands.move;
+          } else {
+            v.command = Two.Commands.line;
+          }
+        });
+
+        if (i >= last) {
+
+          // TODO: Add check if the two vectors in question are the same values.
+          if (this._closed && this._automatic) {
+
+            b = a;
+            a = m;
+
+            verts = getSubdivisions(a, b, limit);
+            points = points.concat(verts);
+
+            // Assign commands to all the verts
+            _.each(verts, function(v, i) {
+              if (i <= 0 && b.command === Two.Commands.move) {
+                v.command = Two.Commands.move;
+              } else {
+                v.command = Two.Commands.line;
+              }
+            });
+
+          } else if (closed) {
+            points.push(new Two.Anchor(a.x, a.y));
+          }
+
+          points[points.length - 1].command = closed ? Two.Commands.close : Two.Commands.line;
+
+        }
+
+        b = a;
+
+      }, this);
+
+      this._automatic = false;
+      this._curved = false;
+      this.vertices = points;
+
+      return this;
+
+    },
+
+    _update: function() {
+
+      if (this._flagVertices) {
+
+        l = this.vertices.length;
+        last = l - 1;
+
+        ia = round((this._beginning) * last);
+        ib = round((this._ending) * last);
+
+        this._vertices.length = 0;
+
+        for (i = ia; i < ib + 1; i++) {
+          v = this.vertices[i];
+          this._vertices.push(v);
+        }
+
+        if (this._automatic) {
+          this.plot();
+        }
+
+      }
+
+      Two.Shape.prototype._update.call(this);
+
+      return this;
+
+    },
+
+    flagReset: function() {
+
+      this._flagVertices =  this._flagFill =  this._flagStroke
+        = this._flagLinewidth = this._flagOpacity = this._flagVisible
+        = this._flagCap = this._flagJoin = this._flagMiter = false;
+
+      Two.Shape.prototype.flagReset.call(this);
+
+      return this;
 
     }
 
   });
+
+  Polygon.MakeObservable(Polygon.prototype);
+
+  function getSubdivisions(a, b, limit) {
+
+    right = b.controls && b.controls.right;
+    left = a.controls && a.controls.left;
+
+    x1 = b.x, y1 = b.y;
+    x2 = (right || b).x, y2 = (right || b).y;
+    x3 = (left || a).x, y3 = (left || a).y;
+    x4 = a.x, y4 = a.y;
+
+    if (right && b._relative) {
+      x2 += b.x;
+      y2 += b.y;
+    }
+
+    if (left && a._relative) {
+      x3 += a.x;
+      y3 += a.y;
+    }
+
+    return Two.Utils.subdivide(x1, y1, x2, y2, x3, y3, x4, y4, limit);
+
+  }
+
+})();
+
+(function() {
+
+  /**
+   * Constants
+   */
+  var min = Math.min, max = Math.max;
+
+  // Localized variables
+  var secret, parent, children, group, rect, corner, l, objects, grandparent,
+    ids, id, left, right, top, bottom, matrix, a, b, c, d, index;
+
+  var Group = Two.Group = function(o) {
+
+    Two.Shape.call(this, true);
+
+    this._renderer.type = 'group';
+
+    this.additions = [];
+    this.subtractions = [];
+
+    this.children = {};
+
+  };
+
+  _.extend(Group, {
+
+    MakeObservable: function(object) {
+
+      Two.Shape.MakeObservable(object);
+      Group.MakeGetterSetters(object, Two.Polygon.Properties);
+
+    },
+
+    MakeGetterSetters: function(group, properties) {
+
+      if (!_.isArray(properties)) {
+        properties = [properties];
+      }
+
+      _.each(properties, function(k) {
+        Group.MakeGetterSetter(group, k);
+      });
+
+    },
+
+    MakeGetterSetter: function(group, k) {
+
+      var secret = '_' + k;
+
+      Object.defineProperty(group, k, {
+        get: function() {
+          return this[secret];
+        },
+        set: function(v) {
+          this[secret] = v;
+          _.each(this.children, function(child) { // Trickle down styles
+            child[k] = v;
+          });
+        }
+      });
+
+    }
+
+  });
+
+  _.extend(Group.prototype, Two.Shape.prototype, {
+
+    // Flags
+    // http://en.wikipedia.org/wiki/Flag
+
+    _flagAdditions: false,
+    _flagSubtractions: false,
+
+    // Underlying Properties
+
+    _fill: '#fff',
+    _stroke: '#000',
+    _linewidth: 1.0,
+    _opacity: 1.0,
+    _visible: true,
+
+    _cap: 'round',
+    _join: 'round',
+    _miter: 4,
+
+    _closed: true,
+    _curved: false,
+    _automatic: true,
+    _beginning: 0,
+    _ending: 1.0,
+
+    /**
+     * Group has a gotcha in that it's at the moment required to be bound to
+     * an instance of two in order to add elements correctly. This needs to
+     * be rethought and fixed.
+     */
+    clone: function(parent) {
+
+      parent = parent || this.parent;
+
+      group = new Group();
+      parent.add(group);
+
+      children = _.map(this.children, function(child) {
+        return child.clone(group);
+      });
+
+      group.translation.copy(this.translation);
+      group.rotation = this.rotation;
+      group.scale = this.scale;
+
+      return group;
+
+    },
+
+    toObject: function() {
+
+      var result = {
+        children: {},
+        translation: this.translation.toObject(),
+        rotation: this.rotation,
+        scale: this.scale
+      };
+
+      _.each(this.children, function(child, i) {
+        result.children[i] = child.toObject();
+      }, this);
+
+      return result;
+
+    },
+
+    /**
+     * Anchor all children to the upper left hand corner
+     * of the group.
+     */
+    corner: function() {
+
+      rect = this.getBoundingClientRect(true);
+      corner = { x: rect.left, y: rect.top };
+
+      _.each(this.children, function(child) {
+        child.translation.subSelf(corner);
+      });
+
+      return this;
+
+    },
+
+    /**
+     * Anchors all children around the center of the group,
+     * effectively placing the shape around the unit circle.
+     */
+    center: function() {
+
+      rect = this.getBoundingClientRect(true);
+
+      rect.centroid = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2
+      };
+
+      _.each(this.children, function(child) {
+        child.translation.subSelf(rect.centroid);
+      });
+
+      // this.translation.copy(rect.centroid);
+
+      return this;
+
+    },
+
+    /**
+     * Add an object to the group.
+     */
+    add: function(o) {
+
+      l = arguments.length,
+        objects = o,
+        children = this.children,
+        grandparent = this.parent,
+        ids = this.additions;
+
+      if (!_.isArray(o)) {
+        objects = _.toArray(arguments);
+      }
+
+      // Add the objects
+
+      _.each(objects, function(object) {
+
+        if (!object) {
+          return;
+        }
+
+        id = object.id, parent = object.parent;
+
+        if (_.isUndefined(children[id])) {
+          // Release object from previous parent.
+          if (parent) {
+            delete parent.children[id];
+            index = _.indexOf(parent.additions, id);
+            if (index >= 0) {
+              parent.additions.splice(index, 1);
+            }
+          }
+          // Add it to this group and update parent-child relationship.
+          children[id] = object;
+          object.parent = this;
+          ids.push(id);
+          this._flagAdditions = true;
+        }
+
+      }, this);
+
+      return this;
+
+    },
+
+    /**
+     * Remove an object from the group.
+     */
+    remove: function(o) {
+
+      l = arguments.length,
+        objects = o,
+        children = this.children,
+        grandparent = this.parent,
+        ids = this.subtractions;
+
+      if (l <= 0 && grandparent) {
+        grandparent.remove(this);
+        return this;
+      }
+
+      if (!_.isArray(o)) {
+        objects = _.toArray(arguments);
+      }
+
+      _.each(objects, function(object) {
+
+        id = object.id, grandchildren = object.children;
+        parent = object.parent;
+
+        if (!(id in children)) {
+          return;
+        }
+
+        delete children[id];
+        delete object.parent;
+
+        index = _.indexOf(parent.additions, id);
+        if (index >= 0) {
+          parent.additions.splice(index, 1);
+        }
+
+        ids.push(id);
+        this._flagSubtractions = true;
+
+      }, this);
+
+      return this;
+
+    },
+
+    /**
+     * Return an object with top, left, right, bottom, width, and height
+     * parameters of the group.
+     */
+    getBoundingClientRect: function(shallow) {
+
+      // TODO: Update this to not __always__ update. Just when it needs to.
+      this._update();
+
+      // Variables need to be defined here, because of nested nature of groups.
+      var left = Infinity, right = -Infinity;
+      var top = Infinity, bottom = -Infinity;
+
+      _.each(this.children, function(child) {
+
+        rect = child.getBoundingClientRect();
+
+        if (!_.isNumber(rect.top) || !_.isNumber(rect.left)
+          || !_.isNumber(rect.right) || !_.isNumber(rect.bottom)) {
+          return;
+        }
+
+        top = min(rect.top, top);
+        left = min(rect.left, left);
+        right = max(rect.right, right);
+        bottom = max(rect.bottom, bottom);
+
+      }, this);
+
+      return {
+        top: top,
+        left: left,
+        right: right,
+        bottom: bottom,
+        width: right - left,
+        height: bottom - top
+      };
+
+    },
+
+    /**
+     * Trickle down of noFill
+     */
+    noFill: function() {
+      _.each(this.children, function(child) {
+        child.noFill();
+      });
+      return this;
+    },
+
+    /**
+     * Trickle down of noStroke
+     */
+    noStroke: function() {
+      _.each(this.children, function(child) {
+        child.noStroke();
+      });
+      return this;
+    },
+
+    /**
+     * Trickle down subdivide
+     */
+    subdivide: function() {
+      var args = arguments;
+      _.each(this.children, function(child) {
+        child.subdivide.apply(child, args);
+      });
+      return this;
+    },
+
+    flagReset: function() {
+
+      if (this._flagAdditions) {
+        this.additions.length = 0;
+        this._flagAdditions = false;
+      }
+
+      if (this._flagSubtractions) {
+        this.subtractions.length = 0;
+        this._flagSubtractions = false;
+      }
+
+      Two.Shape.prototype.flagReset.call(this);
+
+      return this;
+
+    }
+
+  });
+
+  Group.MakeObservable(Group.prototype);
 
 })();
