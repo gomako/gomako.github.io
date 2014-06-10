@@ -1,8 +1,8 @@
-*, *:before, *:after { -moz-box-sizing: border-box; -webkit-box-sizing: border-box; box-sizing: border-box; }
+*, *:before, *:after { -moz-box-sizing: border-box; -webkit-box-sizing: border-box; box-sizing: border-box; margin:0; padding:0;}
 
 html { height: 100%; max-height: 100%; font-family: sans-serif; /* 1 */ -ms-text-size-adjust: 100%; /* 2 */ -webkit-text-size-adjust: 100%; /* 2 */ }
 
-body { height: 100%; max-height: 100%; margin: 0; }
+body { height: 100%; max-height: 100%; margin: 0; padding: 0; }
 
 /** Correct `block` display not defined in IE 8/9. */
 article, aside, details, figcaption, figure, footer, header, hgroup, main, nav, section, summary { display: block; }
@@ -28,7 +28,7 @@ a { background: transparent; }
 /* Add your sass to sass/_styles.scss */
 /*------- Das Styles -------*/
 body { background-color: #fcb215; }
+header, section, div, footer { max-width: 100%; margin: 0 auto; }
 
-header, section, footer { max-width: 100%; max-width: 32.724em; margin: 0 auto; }
-
-#skullSkull { display: none; }
+#bork { overflow: hidden; }
+.nope { display: none; }
