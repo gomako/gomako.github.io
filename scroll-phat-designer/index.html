@@ -66,14 +66,17 @@
   }
   pre {
     width: 330px;
-    margin: 10px auto;
+    margin: 0 auto 20px;
     background: #fff;
     overflow-x: scroll; 
     padding: 10px;
   }
   p {
     margin: 10px auto;
-    width: 330px;
+    padding: 10px;
+    width: 600px;
+    max-width: 100%;
+    background: #fff;
   }
   </style>
 </head>  
@@ -85,11 +88,16 @@
   -->
 
   <h1>ScrollPhat</h1>
+
+  <p>This is a quick little tool to draw pretty pictures and generate an array for use on Pimoroni's scroll phat on the Raspberry Pi Zero.</p>
+  
   <div class="container"></div>
   <button>Clear</button>
   <textarea></textarea>
+  
   <p>The code below is the python script that I run to put the image on the scroll-phat, copy and paste it into a python file on your pi zero to make pretty things happen. It's not particulary clever, but it was quick!</p>
   <p>Alternatively, the one dimensional array above contains the ons and offs of the leds if you're driving the scroll phat from something else.</p>
+
   <pre>
 import scrollphat
 
