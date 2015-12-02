@@ -167,6 +167,7 @@ scrollphat.update()
       $(this).toggleClass('active');
       vals[$(this).data('index')] = ($(this).hasClass('active')) ? 1 : 0;
       $('textarea').val(vals);  
+      $('#vals').text(vals);
     } 
   });
   $(document).on('mousedown', '.container div', function(e) {
