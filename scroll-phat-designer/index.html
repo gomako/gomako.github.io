@@ -1,0 +1,137 @@
+<!doctype html>  
+<html lang="en">  
+<head>  
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+  <meta charset="utf-8">  
+  <title>PiZero Matrix Builder</title>  
+  <link href='https://fonts.googleapis.com/css?family=Open+Sans:700' rel='stylesheet' type='text/css'>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+  <style>
+  	* {
+  		margin: 0;
+  		padding: 0;
+  		box-sizing: border-box;
+  	}
+  	body {
+  		font-family: 'Open Sans', sans-serif;
+		background: #eee;
+		text-align: center;
+  	}
+  	h1 {
+  		margin: 10px;
+  	}
+	.container {
+		margin: 0 auto;
+		background: #000;
+		position: relative;
+	}
+	button {
+		width: 330px;
+		background-color: orange;
+		color: #fff;
+		padding: 10px;
+		font-size: 16px;
+		text-transform: uppercase;
+		font-weight: bold;
+		display: block;
+		border: none;
+		margin: 10px auto;
+	}
+	button:focus {
+		border: none;
+		outline: none;
+	}
+	textarea {
+		width: 330px;
+		margin: 0 auto;
+		display: block;
+		height: 100px;
+		padding: 10px;
+		font-size: 16px;
+		line-height: 1.2;
+		border: none;
+	}
+	.container > div {
+		width: 30px;
+		height: 30px;
+		position: absolute;
+		border: 1px solid #fff;
+		background: rgba(255,255,255,0.1);
+		cursor: pointer;
+	}
+	.container > div.active {
+		background: rgba(255,255,255,0.7);
+	}
+  </style>
+</head>  
+<body>
+
+  <h1>ScrollPhat</h1>
+  <div class="container"></div>
+  <button>Clear</button>
+  <textarea></textarea>
+  
+  <script>
+
+  var vals = []
+  var mouseDown = 0;
+  document.body.onmousedown = function() { 
+      mouseDown = 1;
+  }
+  document.body.onmouseup = function() {
+      mouseDown = 0;
+  }
+  $(document).ready(function() {
+  	
+  	var s = 30,
+  		w = 11,
+  		h = 5,
+  		i = 0,
+  		$container = $('.container');
+
+	$container.width(w*s + 'px').height(h*s + 'px');
+
+	// Build grid
+	for (var y = 0; y < h; y++) {
+	  	for (var x = 0; x < w; x++) {
+  			$('<div />').css({
+  				'top': (y*s) +'px',
+  				'left': (x*s) +'px',
+			})
+			.attr('data-index', i)
+			.attr('data-on', 0)
+			.appendTo($container);
+			vals[i] = 0;
+			i++;
+  		}
+  	}
+
+  	$('textarea').val(vals);
+
+
+  });
+
+  $(document).on('mouseenter', '.container div', function(e) {
+  	e.preventDefault();
+  	if(mouseDown) {
+  		$(this).toggleClass('active');
+  		vals[$(this).data('index')] = ($(this).hasClass('active')) ? 1 : 0;
+  		$('textarea').val(vals);	
+  	}	
+  });
+  $(document).on('mousedown', '.container div', function(e) {
+  	e.preventDefault();
+	$(this).toggleClass('active');
+	vals[$(this).data('index')] = ($(this).hasClass('active')) ? 1 : 0;
+	$('textarea').val(vals);	
+  });
+  $(document).on('click', 'button', function(e) {
+  	console.log(this);
+  	e.preventDefault();
+  	vals.fill(0);
+  	$('textarea').val(vals);
+  	$('.container div').removeClass('active');
+  });
+  </script>
+</body>  
+</html>
