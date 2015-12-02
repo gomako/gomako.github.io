@@ -4,72 +4,113 @@
   <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
   <meta charset="utf-8">  
   <title>PiZero Matrix Builder</title>  
-  <link href='https://fonts.googleapis.com/css?family=Open+Sans:700' rel='stylesheet' type='text/css'>
+  <meta name="description" value="Quick and dirty scroll phat display array designer for the scroll-phat from Pimoroni for use in the Raspberry Pi.">
+  <link href='https://fonts.googleapis.com/css?family=Open+Sans:300,700' rel='stylesheet' type='text/css'>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
   <style>
-  	* {
-  		margin: 0;
-  		padding: 0;
-  		box-sizing: border-box;
-  	}
-  	body {
-  		font-family: 'Open Sans', sans-serif;
-		background: #eee;
-		text-align: center;
-  	}
-  	h1 {
-  		margin: 10px;
-  	}
-	.container {
-		margin: 0 auto;
-		background: #000;
-		position: relative;
-	}
-	button {
-		width: 330px;
-		background-color: orange;
-		color: #fff;
-		padding: 10px;
-		font-size: 16px;
-		text-transform: uppercase;
-		font-weight: bold;
-		display: block;
-		border: none;
-		margin: 10px auto;
-	}
-	button:focus {
-		border: none;
-		outline: none;
-	}
-	textarea {
-		width: 330px;
-		margin: 0 auto;
-		display: block;
-		height: 100px;
-		padding: 10px;
-		font-size: 16px;
-		line-height: 1.2;
-		border: none;
-	}
-	.container > div {
-		width: 30px;
-		height: 30px;
-		position: absolute;
-		border: 1px solid #fff;
-		background: rgba(255,255,255,0.1);
-		cursor: pointer;
-	}
-	.container > div.active {
-		background: rgba(255,255,255,0.7);
-	}
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Open Sans', sans-serif;
+      background: #eee;
+    }
+    h1 {
+      margin: 10px;
+      text-align: center;
+      font-weight: 700;
+    }
+  .container {
+    margin: 0 auto;
+    background: #000;
+    position: relative;
+  }
+  button {
+    width: 330px;
+    background-color: orange;
+    color: #fff;
+    padding: 10px;
+    font-size: 16px;
+    text-transform: uppercase;
+    font-weight: 700;
+    display: block;
+    border: none;
+    margin: 10px auto;
+  }
+  button:focus {
+    border: none;
+    outline: none;
+  }
+  textarea {
+    width: 330px;
+    margin: 0 auto;
+    display: block;
+    height: 100px;
+    padding: 10px;
+    font-size: 16px;
+    line-height: 1.2;
+    border: none;
+  }
+  .container > div {
+    width: 30px;
+    height: 30px;
+    position: absolute;
+    border: 1px solid #fff;
+    background: rgba(255,255,255,0.1);
+    cursor: pointer;
+  }
+  .container > div.active {
+    background: rgba(255,255,255,0.7);
+  }
+  pre {
+    width: 330px;
+    margin: 10px auto;
+    background: #fff;
+    overflow-x: scroll; 
+    padding: 10px;
+  }
+  p {
+    margin: 10px auto;
+    width: 330px;
+  }
   </style>
 </head>  
 <body>
+
+  <!-- 
+  This is a quick and dirty little tool, the code is godawful,
+  don't judge me! 
+  -->
 
   <h1>ScrollPhat</h1>
   <div class="container"></div>
   <button>Clear</button>
   <textarea></textarea>
+  <p>The code below is the python script that I run to put the image on the scroll-phat, copy and paste it into a python file on your pi zero to make pretty things happen. It's not particulary clever, but it was quick!</p>
+  <p>Alternatively, the one dimensional array above contains the ons and offs of the leds if you're driving the scroll phat from something else.</p>
+  <pre>
+import scrollphat
+
+scrollphat.set_brightness(1);
+
+w = 11
+
+  vals = [<span id="vals"></span>];
+
+x=0
+y=0
+
+for i in range(len(vals)):
+  scrollphat.set_pixel(x,y, vals[i])
+  x += 1
+  if x >= w:
+    x = 0
+    y += 1
+  
+scrollphat.update()
+  </pre>
   
   <script>
 
@@ -82,56 +123,69 @@
       mouseDown = 0;
   }
   $(document).ready(function() {
-  	
-  	var s = 30,
-  		w = 11,
-  		h = 5,
-  		i = 0,
-  		$container = $('.container');
+    
+    var s = 30,
+      w = 11,
+      h = 5,
+      i = 0,
+      $container = $('.container');
 
-	$container.width(w*s + 'px').height(h*s + 'px');
+  $container.width(w*s + 'px').height(h*s + 'px');
 
-	// Build grid
-	for (var y = 0; y < h; y++) {
-	  	for (var x = 0; x < w; x++) {
-  			$('<div />').css({
-  				'top': (y*s) +'px',
-  				'left': (x*s) +'px',
-			})
-			.attr('data-index', i)
-			.attr('data-on', 0)
-			.appendTo($container);
-			vals[i] = 0;
-			i++;
-  		}
-  	}
+  // Build grid
+  for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        $('<div />').css({
+          'top': (y*s) +'px',
+          'left': (x*s) +'px',
+      })
+      .attr('data-index', i)
+      .attr('data-on', 0)
+      .appendTo($container);
+      vals[i] = 0;
+      i++;
+      }
+    }
 
-  	$('textarea').val(vals);
+    $('textarea').val(vals);
+    $('#vals').text(vals);
 
 
   });
 
   $(document).on('mouseenter', '.container div', function(e) {
-  	e.preventDefault();
-  	if(mouseDown) {
-  		$(this).toggleClass('active');
-  		vals[$(this).data('index')] = ($(this).hasClass('active')) ? 1 : 0;
-  		$('textarea').val(vals);	
-  	}	
+    e.preventDefault();
+    if(mouseDown) {
+      $(this).toggleClass('active');
+      vals[$(this).data('index')] = ($(this).hasClass('active')) ? 1 : 0;
+      $('textarea').val(vals);  
+    } 
   });
   $(document).on('mousedown', '.container div', function(e) {
-  	e.preventDefault();
-	$(this).toggleClass('active');
-	vals[$(this).data('index')] = ($(this).hasClass('active')) ? 1 : 0;
-	$('textarea').val(vals);	
+    e.preventDefault();
+    $(this).toggleClass('active');
+    vals[$(this).data('index')] = ($(this).hasClass('active')) ? 1 : 0;
+    $('textarea').val(vals);  
+    $('#vals').text(vals);
   });
   $(document).on('click', 'button', function(e) {
-  	console.log(this);
-  	e.preventDefault();
-  	vals.fill(0);
-  	$('textarea').val(vals);
-  	$('.container div').removeClass('active');
+    e.preventDefault();
+    vals.fill(0);
+    $('textarea').val(vals);
+    $('#vals').text(vals);
+    $('.container div').removeClass('active');
   });
   </script>
+
+  <script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-2584136-5', 'auto');
+  ga('send', 'pageview');
+
+</script>
 </body>  
 </html>
