@@ -5,6 +5,7 @@
   <meta charset="utf-8">  
   <title>PiZero Matrix Builder</title>  
   <meta name="description" value="Quick and dirty scroll phat display array designer for the scroll-phat from Pimoroni for use in the Raspberry Pi.">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href='https://fonts.googleapis.com/css?family=Open+Sans:300,700' rel='stylesheet' type='text/css'>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
   <style>
@@ -28,7 +29,7 @@
     position: relative;
   }
   button {
-    width: 330px;
+    width: 550px;
     background-color: orange;
     color: #fff;
     padding: 10px;
@@ -44,7 +45,7 @@
     outline: none;
   }
   textarea {
-    width: 330px;
+    width: 550px;
     margin: 0 auto;
     display: block;
     height: 100px;
@@ -54,8 +55,8 @@
     border: none;
   }
   .container > div {
-    width: 30px;
-    height: 30px;
+    width: 50px;
+    height: 50px;
     position: absolute;
     border: 1px solid #fff;
     background: rgba(255,255,255,0.1);
@@ -65,7 +66,7 @@
     background: rgba(255,255,255,0.7);
   }
   pre {
-    width: 330px;
+    width: 550px;
     margin: 0 auto 20px;
     background: #fff;
     overflow-x: scroll; 
@@ -132,7 +133,7 @@ scrollphat.update()
   }
   $(document).ready(function() {
     
-    var s = 30,
+    var s = 50,
       w = 11,
       h = 5,
       i = 0,
