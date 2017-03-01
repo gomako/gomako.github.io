@@ -61,7 +61,7 @@
 					</div>
 					<div class="column is-one-quarter">
 						<p>Min words per line</p>
-						<input class="input" type="number" value="5" min="1" step="1">
+						<input class="input" id="minWords" type="number" value="5" min="1" step="1">
 					</div>
 					<div class="column">
 						<p>&nbsp;</p>
@@ -97,8 +97,8 @@
 	class DiasticMachine {
 		
 		constructor() {
-			
-			this.minWords = 4; // Minimum words in a sentence
+			// Minimum words in a sentence
+			this.minWordsInput = document.getElementById('minWords');
 
 			this.seed = document.getElementById('seed');
 			this.seed.value = this.randomLine();
@@ -120,7 +120,7 @@
 		}
 			
 		process() {
-
+			this.minWords = this.minWordsInput.value; 
 			let title = this.seed.value;
 			let seedTxt = title.toLowerCase().split(new RegExp(/[^a-zA-Z]+/g));
 			let srcTxt = this.text.value.toLowerCase().split(new RegExp(/[^a-zA-Z]+/g));
