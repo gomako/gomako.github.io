@@ -8,6 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href='https://fonts.googleapis.com/css?family=Open+Sans:300,700' rel='stylesheet' type='text/css'>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+  <!-- Redo this in Vue -->
   <style>
     * {
       margin: 0;
@@ -29,7 +30,7 @@
     position: relative;
   }
   button {
-    width: 550px;
+    width: 300px;
     background-color: orange;
     color: #fff;
     padding: 10px;
@@ -45,7 +46,7 @@
     outline: none;
   }
   textarea {
-    width: 550px;
+    width: 300px;
     margin: 0 auto;
     display: block;
     height: 100px;
@@ -55,8 +56,8 @@
     border: none;
   }
   .container > div {
-    width: 50px;
-    height: 50px;
+    width: 27px;
+    height: 27px;
     position: absolute;
     border: 1px solid #fff;
     background: rgba(255,255,255,0.1);
@@ -66,7 +67,7 @@
     background: rgba(255,255,255,0.7);
   }
   pre {
-    width: 550px;
+    width: 300px;
     margin: 0 auto 20px;
     background: #fff;
     overflow-x: scroll; 
@@ -75,7 +76,7 @@
   p {
     margin: 10px auto;
     padding: 10px;
-    width: 600px;
+    width: 300px;
     max-width: 100%;
     background: #fff;
   }
@@ -100,91 +101,91 @@
   <p>Alternatively, the one dimensional array above contains the ons and offs of the leds if you're driving the scroll phat from something else.</p>
 
   <pre>
-import scrollphat
+    import scrollphat
 
-scrollphat.set_brightness(1);
+    scrollphat.set_brightness(1);
 
-w = 11
+    w = 11
 
-  vals = [<span id="vals"></span>];
+      vals = [<span id="vals"></span>];
 
-x=0
-y=0
+    x=0
+    y=0
 
-for i in range(len(vals)):
-  scrollphat.set_pixel(x,y, vals[i])
-  x += 1
-  if x >= w:
-    x = 0
-    y += 1
-  
-scrollphat.update()
+    for i in range(len(vals)):
+      scrollphat.set_pixel(x,y, vals[i])
+      x += 1
+      if x >= w:
+        x = 0
+        y += 1
+      
+    scrollphat.update()
   </pre>
   
   <script>
 
-  var vals = []
-  var mouseDown = 0;
-  document.body.onmousedown = function() { 
-      mouseDown = 1;
-  }
-  document.body.onmouseup = function() {
-      mouseDown = 0;
-  }
-  $(document).ready(function() {
-    
-    var s = 50,
-      w = 11,
-      h = 5,
-      i = 0,
-      $container = $('.container');
-
-  $container.width(w*s + 'px').height(h*s + 'px');
-
-  // Build grid
-  for (var y = 0; y < h; y++) {
-      for (var x = 0; x < w; x++) {
-        $('<div />').css({
-          'top': (y*s) +'px',
-          'left': (x*s) +'px',
-      })
-      .attr('data-index', i)
-      .attr('data-on', 0)
-      .appendTo($container);
-      vals[i] = 0;
-      i++;
-      }
+    var vals = []
+    var mouseDown = 0;
+    document.body.onmousedown = function() { 
+        mouseDown = 1;
     }
+    document.body.onmouseup = function() {
+        mouseDown = 0;
+    }
+    $(document).ready(function() {
+      
+      var s = 27,
+        w = 11,
+        h = 5,
+        i = 0,
+        $container = $('.container');
 
-    $('textarea').val(vals);
-    $('#vals').text(vals);
+    $container.width(w*s + 'px').height(h*s + 'px');
+
+    // Build grid
+    for (var y = 0; y < h; y++) {
+        for (var x = 0; x < w; x++) {
+          $('<div />').css({
+            'top': (y*s) +'px',
+            'left': (x*s) +'px',
+        })
+        .attr('data-index', i)
+        .attr('data-on', 0)
+        .appendTo($container);
+        vals[i] = 0;
+        i++;
+        }
+      }
+
+      $('textarea').val(vals);
+      $('#vals').text(vals);
 
 
-  });
+    });
 
-  $(document).on('mouseenter', '.container div', function(e) {
-    e.preventDefault();
-    if(mouseDown) {
+    $(document).on('mouseenter', '.container div', function(e) {
+      e.preventDefault();
+      if(mouseDown) {
+        $(this).toggleClass('active');
+        vals[$(this).data('index')] = ($(this).hasClass('active')) ? 1 : 0;
+        $('textarea').val(vals);  
+        $('#vals').text(vals);
+      } 
+    });
+    $(document).on('mousedown', '.container div', function(e) {
+      e.preventDefault();
       $(this).toggleClass('active');
       vals[$(this).data('index')] = ($(this).hasClass('active')) ? 1 : 0;
       $('textarea').val(vals);  
       $('#vals').text(vals);
-    } 
-  });
-  $(document).on('mousedown', '.container div', function(e) {
-    e.preventDefault();
-    $(this).toggleClass('active');
-    vals[$(this).data('index')] = ($(this).hasClass('active')) ? 1 : 0;
-    $('textarea').val(vals);  
-    $('#vals').text(vals);
-  });
-  $(document).on('click', 'button', function(e) {
-    e.preventDefault();
-    vals.fill(0);
-    $('textarea').val(vals);
-    $('#vals').text(vals);
-    $('.container div').removeClass('active');
-  });
+    });
+    $(document).on('click', 'button', function(e) {
+      e.preventDefault();
+      vals.fill(0);
+      $('textarea').val(vals);
+      $('#vals').text(vals);
+      $('.container div').removeClass('active');
+    });
   </script>
 
   <script>
