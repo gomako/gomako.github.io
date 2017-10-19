@@ -44,7 +44,6 @@ export default {
         x = Math.floor(r / 65536 / 65536 * m) + i;
         t = a [i], a [i] = a [x], a [x] = t;
       }
-
       return a;
     },
     setWords() {
@@ -116,7 +115,8 @@ export default {
             "go",  "we",  "see",  "can",  "come",  "this",  "on",  "he",  "went",  "dog",  "away",  "am",  "up",  "me",  "mum",  "all",  "you",  "like",  "it",  "is",  "day",  "going",  "at",  "cat",  "was",  "big",  "play",  "get",  "look",  "she",  "no",  "said",  "are",  "and",  "yes",  "to",  "the",  "they",  "for",  "in",  "of",  "my",  "dad"
         ],
         "year-1": [
-            "about", "don’t", "two", "once", "can’t", "home", "because", "take", "her", "must", "from", "way", "many", "put", "just", "but", "over", "time", "not", "half", "then", "your", "should", "love", "who", "as", "us", "one", "after", "dig", "bed", "than", "could", "house", "girl", "were", "here", "name", "last", "by", "may", "ran", "now", "has", "people", "too", "sister", "made", "there", "back", "very", "or", "will", "door", "been", "that", "again", "how", "good", "what", "did", "new", "laugh", "call", "him", "saw", "off", "called", "more", "took", "so", "have", "push", "ball", "want", "make", "these", "down", "boy", "our", "with", "if", "got", "their", "an", "next", "little", "when", "do", "school", "old", "came", "his", "tree", "some", "help", "much", "be", "water", "man", "pull", " rst", "brother", "out", "three", "jump", "had", "them", "would", "night", "live", "where", "another", "seen", "lived"],
+            "about", "don’t", "two", "once", "can’t", "home", "because", "take", "her", "must", "from", "way", "many", "put", "just", "but", "over", "time", "not", "half", "then", "your", "should", "love", "who", "as", "us", "one", "after", "dig", "bed", "than", "could", "house", "girl", "were", "here", "name", "last", "by", "may", "ran", "now", "has", "people", "too", "sister", "made", "there", "back", "very", "or", "will", "door", "been", "that", "again", "how", "good", "what", "did", "new", "laugh", "call", "him", "saw", "off", "called", "more", "took", "so", "have", "push", "ball", "want", "make", "these", "down", "boy", "our", "with", "if", "got", "their", "an", "next", "little", "when", "do", "school", "old", "came", "his", "tree", "some", "help", "much", "be", "water", "man", "pull", " rst", "brother", "out", "three", "jump", "had", "them", "would", "night", "live", "where", "another", "seen", "lived"
+        ],
         "year-4": [
             "ask", "stopped", "first", "around", "asked", "think", "half", "below", "began", "thought", "morning", "between", "being", "told", "much", "both", "brought", "tries", "never", "different", "change", "turn", "number", "following", "coming", "turned", "often", "high", "didn't", "used", "only", "inside", "does", "walk", "second", "near", "found", "walked", "sometimes", "other", "goes", "walking", "still", "outside", "gone", "watch", "suddenly", "place", "heard", "write", "today", "right", "I'm", "woke", "until", "round", "jumped", "woken", "upon", "such", "knew", "almost", "while", "though", "know", "always", "year", "together", "leave", "any", "young", "under", "might", "before", "above", "where", "opened", "better", "across", "without", "show", "during", "along", "started", "every", "also"
         ],
@@ -163,11 +163,13 @@ a {
   color: #42b983;
 }
 .buttons {
-  width: 66%;
   margin: 0 auto 1rem;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
   button {
+    width: 100px;
     padding: 1rem;
-    width: 16.666%;
     border: 1px solid $green;
     background: $light-green;
     cursor: pointer;
@@ -183,15 +185,18 @@ a {
 
 .word-grid {
   margin-top: 1rem;
-  display: grid;
-  grid-template-columns: 33% 33% 33%;
-  grid-gap: .618rem;
-  .word-cell {
+  display: flex;
+  justify-content: space-around;
+  flex-wrap: wrap;
 
+  .word-cell {
+    flex: 1 33%;
+    min-width: 150px;
     padding: 1rem;
-    margin: 0;
+    margin: auto;
     border: 1px solid #ccc;
-    
+      
   }
 }
+
 </style>
