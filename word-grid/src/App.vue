@@ -18,7 +18,7 @@
       
       <p v-if="level.hasOwnProperty('description')">({{ level.description }})</p>
       
-      <span m-l-1>Number of words: <input type="number" step="1" v-model="wordCount"></span>
+      <span m-l-1>Number of words: <input class="word-count" type="number" pattern="\d*" step="1" v-model="wordCount"/></span>
       
       <div class="word-grid">
         <div v-for="word in words" class="word-cell">
@@ -28,11 +28,14 @@
       
     </div>
 
-    <button class="show-why" @click="showWhy = !showWhy">
+    <button class="show-why" 
+      @click="showWhy = !showWhy"
+      :class="{ active: showWhy }">
       <span v-if="showWhy">X</span>  
       <span v-else>?</span>  
     </button>
     <div class="why" v-show="showWhy">
+      <p>What is this?</p>
       <p>I made this to help my daughter with reading. She is one of the few children that phonics doesn't really work for. Her teacher suggested 'precision teaching' which is basically learning by rote. You select a level, put how many words you want to display (collected from the high frequency word lists) and the child reads the words. Pretty much as simple as that.</p>
       <p>Built by <a href="https://twitter.com/gomako">Ben Harvey</a> using <a href="https://vuejs.org/">Vue.js</a></p>
     </div>
@@ -65,8 +68,7 @@ export default {
       }
       if(this.level.key == "year-3") {
         this.words = this.wordList["reception"]
-          .concat(this.wordList["year-1"])
-          .concat(this.wordList["year-2"]);
+          .concat(this.wordList["year-1"]);
       }
       this.words = this.shuffle(this.words);
       this.words = this.words.slice(0, this.wordCount);
@@ -195,11 +197,12 @@ a {
 }
 
 .word-grid {
-  margin-top: 1rem;
+  margin: 1rem auto;
   display: flex;
   justify-content: space-around;
   flex-wrap: wrap;
-
+  max-width: 1200px;
+  
   .word-cell {
     flex: 1 33%;
     min-width: 150px;
@@ -215,24 +218,34 @@ a {
     top: 0;
     right: 0;
     margin: 1rem;
-    padding: 1rem;
+    padding: .5rem;
     border-radius: 10rem;
-    width: 3rem;
-    height: 3rem;
-    font-size: 1.618rem;
+    width: 2rem;
+    height: 2rem;
+    font-size: 1rem;
     line-height: 1rem;
     outline: none;
     border: none;
     background: $light-green;
     z-index: 1;
     cursor: pointer;
+    &.active {
+      background: #fff;
+    }
 }
 .why {
   position: absolute;
   top: 0;
   right: 0;
-  width: 300px;
-  padding: 5rem 1rem 1rem;
+  width: 320px;
+  max-width: 100%;
+  padding: 1rem;
   background: $light-green;
+  text-align: left;
+}
+.word-count {
+  padding: .618rem;
+    font-size: 1rem;
+    width: 4rem;
 }
 </style>
