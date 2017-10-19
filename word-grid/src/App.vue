@@ -27,6 +27,16 @@
       </div>
       
     </div>
+
+    <button class="show-why" @click="showWhy = !showWhy">
+      <span v-if="showWhy">X</span>  
+      <span v-else>?</span>  
+    </button>
+    <div class="why" v-show="showWhy">
+      <p>I made this to help my daughter with reading. She is one of the few children that phonics doesn't really work for. Her teacher suggested 'precision teaching' which is basically learning by rote. You select a level, put how many words you want to display (collected from the high frequency word lists) and the child reads the words. Pretty much as simple as that.</p>
+      <p>Built by <a href="https://twitter.com/gomako">Ben Harvey</a> using <a href="https://vuejs.org/">Vue.js</a></p>
+    </div>
+
   </div>
 </template>
 
@@ -72,6 +82,7 @@ export default {
   },
   data () {
     return {
+      showWhy: false,
       wordCount: 9,
       levels: {
         "reception" : {
@@ -115,7 +126,7 @@ export default {
             "go",  "we",  "see",  "can",  "come",  "this",  "on",  "he",  "went",  "dog",  "away",  "am",  "up",  "me",  "mum",  "all",  "you",  "like",  "it",  "is",  "day",  "going",  "at",  "cat",  "was",  "big",  "play",  "get",  "look",  "she",  "no",  "said",  "are",  "and",  "yes",  "to",  "the",  "they",  "for",  "in",  "of",  "my",  "dad"
         ],
         "year-1": [
-            "about", "don’t", "two", "once", "can’t", "home", "because", "take", "her", "must", "from", "way", "many", "put", "just", "but", "over", "time", "not", "half", "then", "your", "should", "love", "who", "as", "us", "one", "after", "dig", "bed", "than", "could", "house", "girl", "were", "here", "name", "last", "by", "may", "ran", "now", "has", "people", "too", "sister", "made", "there", "back", "very", "or", "will", "door", "been", "that", "again", "how", "good", "what", "did", "new", "laugh", "call", "him", "saw", "off", "called", "more", "took", "so", "have", "push", "ball", "want", "make", "these", "down", "boy", "our", "with", "if", "got", "their", "an", "next", "little", "when", "do", "school", "old", "came", "his", "tree", "some", "help", "much", "be", "water", "man", "pull", " rst", "brother", "out", "three", "jump", "had", "them", "would", "night", "live", "where", "another", "seen", "lived"
+            "about", "don’t", "two", "once", "can’t", "home", "because", "take", "her", "must", "from", "way", "many", "put", "just", "but", "over", "time", "not", "half", "then", "your", "should", "love", "who", "as", "us", "one", "after", "dig", "bed", "than", "could", "house", "girl", "were", "here", "name", "last", "by", "may", "ran", "now", "has", "people", "too", "sister", "made", "there", "back", "very", "or", "will", "door", "been", "that", "again", "how", "good", "what", "did", "new", "laugh", "call", "him", "saw", "off", "called", "more", "took", "so", "have", "push", "ball", "want", "make", "these", "down", "boy", "our", "with", "if", "got", "their", "an", "next", "little", "when", "do", "school", "old", "came", "his", "tree", "some", "help", "much", "be", "water", "man", "pull", "first", "brother", "out", "three", "jump", "had", "them", "would", "night", "live", "where", "another", "seen", "lived"
         ],
         "year-4": [
             "ask", "stopped", "first", "around", "asked", "think", "half", "below", "began", "thought", "morning", "between", "being", "told", "much", "both", "brought", "tries", "never", "different", "change", "turn", "number", "following", "coming", "turned", "often", "high", "didn't", "used", "only", "inside", "does", "walk", "second", "near", "found", "walked", "sometimes", "other", "goes", "walking", "still", "outside", "gone", "watch", "suddenly", "place", "heard", "write", "today", "right", "I'm", "woke", "until", "round", "jumped", "woken", "upon", "such", "knew", "almost", "while", "though", "know", "always", "year", "together", "leave", "any", "young", "under", "might", "before", "above", "where", "opened", "better", "across", "without", "show", "during", "along", "started", "every", "also"
@@ -199,4 +210,29 @@ a {
   }
 }
 
+.show-why {
+  position: absolute;
+    top: 0;
+    right: 0;
+    margin: 1rem;
+    padding: 1rem;
+    border-radius: 10rem;
+    width: 3rem;
+    height: 3rem;
+    font-size: 1.618rem;
+    line-height: 1rem;
+    outline: none;
+    border: none;
+    background: $light-green;
+    z-index: 1;
+    cursor: pointer;
+}
+.why {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 300px;
+  padding: 5rem 1rem 1rem;
+  background: $light-green;
+}
 </style>
