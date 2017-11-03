@@ -18,7 +18,8 @@
       
       <p v-if="level.hasOwnProperty('description')">({{ level.description }})</p>
       
-      <span m-l-1>Number of words: <input class="word-count" type="number" pattern="\d*" step="1" v-model="wordCount"/></span>
+      <span class="m-r-1">Number of words: <input class="word-count" type="number" pattern="\d*" step="1" v-model="wordCount"/></span>
+      <button @click="setWords">New Word List</button>
       
       <div class="word-grid">
         <div v-for="word in words" class="word-cell">
@@ -175,6 +176,20 @@ li {
 a {
   color: #42b983;
 }
+button {
+  padding: 0.85rem;
+  border: 1px solid $green;
+  background: $light-green;
+  cursor: pointer;
+  outline: none;
+  vertical-align: top;
+  &:hover {
+    background: darken($light-green, 10);
+  }
+  &.active {
+    background: darken($light-green, 20);
+  }
+}
 .buttons {
   margin: 0 auto 1rem;
   display: flex;
@@ -182,17 +197,6 @@ a {
   flex-wrap: wrap;
   button {
     width: 100px;
-    padding: 1rem;
-    border: 1px solid $green;
-    background: $light-green;
-    cursor: pointer;
-    outline: none;
-    &:hover {
-      background: darken($light-green, 10);
-    }
-    &.active {
-      background: darken($light-green, 20);
-    }
   }
 }
 
@@ -247,5 +251,8 @@ a {
   padding: .618rem;
     font-size: 1rem;
     width: 4rem;
+}
+.m-r-1 {
+  margin-right: 1rem;
 }
 </style>
