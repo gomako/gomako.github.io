@@ -1,0 +1,57 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  <title>Monster Face Generator</title>
+  <meta name="description" content="">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+
+  <title>Monster Generator</title>
+
+  <style type='text/css'>
+    * { box-sizing: border-box; }
+    html, body { 
+      width: 100%; height: 100%; margin: 1rem; padding: 0; background-color: #111;
+      color: #fff;
+      font-family: monospace;
+    }
+    .container {
+      height: 600px;
+    }
+    .loading {
+      font-size: 2rem;
+    }
+    canvas {
+      max-width: 100%;
+      height: 100;
+      margin: 0 auto;
+    }
+    header {
+      padding: 20px 0;
+      text-align: center;
+
+    }
+    .footer {
+      margin-top: .5rem;
+      text-align: center;
+    }
+    a {
+      color: #fff;
+    }
+    canvas { image-rendering: pixelated; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <header>Made it to see how css filters could be applied to canvas 2d contexts to vary some generated monsters. </header>
+  <div class="container">
+    <div class="loading">Loading</div>
+    <canvas width=256 height=256 style="display:none;"></canvas>    
+  </div>
+  <div class="footer">Based on <a href="http://tamats.com/games/people/">http://tamats.com/games/people/</a></div>
+<script type="text/javascript" src="js/face-generator.js"></script>
+</body>
+</html>
+
+
