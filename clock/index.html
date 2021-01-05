@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What Time Is It?</title>
+  <style>
+    * { box-sizing: border-box; margin:0; padding:0; font-family: sans-serif; }
+    html, body {
+      height: 100vh;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: hotpink;
+    }
+    canvas {
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>WHAT TIME IS IT?</h1>
+    <div>
+      <canvas id="canvas" width="300" height="300"></canvas>
+    </div>
+    
+  <script>
+      
+
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      let rad = canvas.height * .5;
+      ctx.translate(rad, rad);
+      rad = rad * .9;
+      
+      drawClock(rad);
+
+      function drawClock(rad) {
+        ctx.arc(0, 0, rad, 0, 2 * Math.PI);
+        ctx.fillStyle = 'white';
+        ctx.fill();
+
+        drawFace(ctx, rad);
+      }
+      function drawFace(ctx, rad) {        
+        ctx.arc(0, 0, rad * 0.1, 0, 2 * Math.PI);
+        ctx.fillStyle = '#111';
+        ctx.fill();
+      }
+
+  </script>
+</body>
+</html>
