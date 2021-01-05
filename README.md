@@ -1,4 +1,4 @@
-gomako.github.io
+[gomako.github.io](https://gomako.github.io)
 ================
 
 Just another GitHub Page.
