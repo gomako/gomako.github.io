@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name=viewport content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👋</text></svg>">
+    <title>goMako on GitHub</title>
+  </head>
+  <body>
+    
+    <div class="word-container">
+      <div class="word" id="word">hello</div>
+      <div class="button" id="next"><button>Next</button></div>
+    </div>
+    
+
+    <link rel="stylesheet" href="/css/main.css">
+
+    <style>
+      body, html { padding: 0; margin: 0; height: 100%;}
+      .word-container {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+      }
+      .word {
+        font-family: "Chalkboard";
+        display: flex;
+        width: 100%;
+        height: 100%;
+        align-items: center;
+        justify-content: center;
+        font-size: 6rem;
+      }
+      button {
+        font-size: 2rem;
+        margin-bottom: 2rem;
+        padding: 1rem 1.618rem;
+        border: 0;
+        background: pink;
+      }
+    </style>
+
+    <script>
+      const words = [
+        "a","children","her","look","on","there","about","come","here","looked","one","they","all","could","him","made","out","this","an","dad","his","make","people","time","and","day","house","me","put","to","are","do","I","Mr","said","too","as","don't","I'm","Mrs","saw","up","asked","down","if","mum","see","very","at","for","in","my","she","was","back","from","into","no","some","we","be","get","is","not","so","went","big","go","it","now","same","were","but","got","it's","of","that","what","by","had","just","off","the","whn","called","have","like","oh","their","will","came","he","little","old","them","with" ,"can","help","then","you" 
+      ];
+
+
+      (function() {
+        const w = document.getElementById('word');
+
+        const setWord = function() {
+          w.innerText = words[Math.floor(Math.random() * words.length)];
+        }
+
+        const btn = document.getElementById('next');
+        btn.onclick = setWord;
+        setWord();
+
+      })();
+
+    </script>
+  </body>
+</html>
