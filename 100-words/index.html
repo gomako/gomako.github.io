@@ -10,6 +10,21 @@
   <body>
     
     <div class="word-container">
+      <label for="">Word set: 
+        <select name="wordsIndex" id="wordsIndexSelect">
+          <option value="0">1</option>
+          <option value="1">2</option>
+          <option value="2">3</option>
+          <option value="3">4</option>
+          <option value="4">5</option>
+          <option value="5">6</option>
+          <option value="6">7</option>
+          <option value="7">8</option>
+          <option value="8">9</option>
+          <option value="9">10</option>
+          <option value="all">All</option>
+        </select>
+      </label>
       <div class="word" id="word">hello</div>
       <div class="button" id="next"><button>Next</button></div>
     </div>
@@ -44,24 +59,40 @@
         border: 0;
         background: pink;
       }
+      select {
+        margin-top: 2rem;
+        padding: .6rem;
+        font-size: 1rem;
+      }
     </style>
 
     <script>
-      const words = [
-        "a","children","her","look","on","there","about","come","here","looked","one","they","all","could","him","made","out","this","an","dad","his","make","people","time","and","day","house","me","put","to","are","do","I","Mr","said","too","as","don't","I'm","Mrs","saw","up","asked","down","if","mum","see","very","at","for","in","my","she","was","back","from","into","no","some","we","be","get","is","not","so","went","big","go","it","now","same","were","but","got","it's","of","that","what","by","had","just","off","the","whn","called","have","like","oh","their","will","came","he","little","old","them","with" ,"can","help","then","you" 
-      ];
-
+      const words = [["a","children","her","look","on","there","about","come","here","looked"],["one","they","all","could","him","made","out","this","an","dad"],["his","make","people","time","and","day","house","me","put","to"],["are","do","I","Mr","said","too","as","don't","I'm","Mrs"],["saw","up","asked","down","if","mum","see","very","at","for"],["in","my","she","was","back","from","into","no","some","we"],["be","get","is","not","so","went","big","go","it","now"],["same","were","but","got","it's","of","that","what","by","had"],["just","off","the","when","called","have","like","oh","their","will"],["came","he","little","old","them","with" ,"can","help","then","you"]];
 
       (function() {
         const w = document.getElementById('word');
+        let wordsIndex = 0; 
+        let selectedWords = words[wordsIndex];
 
         const setWord = function() {
-          w.innerText = words[Math.floor(Math.random() * words.length)];
+          w.innerText = selectedWords[Math.floor(Math.random() * selectedWords.length)];
         }
-
+        
+        // Button event
         const btn = document.getElementById('next');
         btn.onclick = setWord;
         setWord();
+
+        // Change word set
+        const s = document.getElementById('wordsIndexSelect');
+        s.onchange = function() {
+          if(this.value == 'all') {
+            selectedWords = [].concat(...words); // Flatten the words array
+          } else {
+            selectedWords = words[this.value];
+          }
+          setWord();
+        }
 
       })();
 
