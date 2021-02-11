@@ -59,16 +59,25 @@
       .typeNumberContainer {
         font-size: 3rem;
         display: flex;
-        font-display: column;
         flex-direction: column;
-      }
-      .typeAnswerContainer {
-
+        align-items: center;
       }
       #typeAnswer {
+        width: 250px;
         font-size: 3rem;
         padding: .6rem;
         text-align: center;
+      }
+      #typeCheckBtn {
+        font-size: 3rem;
+        margin: 0;
+        padding: .6rem 1rem;
+        border: 0;
+        background: pink;
+        cursor: pointer;
+        outline: none;
+        border: 2px solid pink;
+        border-radius: 0;
       }
 
       #resultContainer {
@@ -127,11 +136,7 @@
 
     <div class="typeNumberContainer">
       <div>What is 1 <span id="typeQuestion"></span> than </span><span id="typeNumber"></span>?</div>
-      <div class="typeAnswerContainer"><input type="number" id="typeAnswer"></div>
-    </div>
-
-    <div id="action">
-      <button id="typeCheckBtn">Check it</button>
+      <div class="typeAnswerContainer"><input type="number" id="typeAnswer"><button id="typeCheckBtn">Check it</button></div>
     </div>
 
   </div>
@@ -205,8 +210,19 @@
       }
     });
 
+    typeAnswer.addEventListener('keydown', (e) => {
+      if(e.code == 'Enter') {
+        checkTypeAnswer();
+      }
+    })
+
     typeCheck.addEventListener('click', (e) => {
       
+      checkTypeAnswer();
+
+    });
+
+    const checkTypeAnswer = function() {
       // Copy the one to be checked against
       let check = typeNumberVal;
       
@@ -226,8 +242,7 @@
       } else {
         incorrectAnswer();
       }
-
-    });
+    }
 
     // Functions
     const selectNumberChange = function() {
