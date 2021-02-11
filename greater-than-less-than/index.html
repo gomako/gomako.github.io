@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👌</text></svg>">
+  <title>Greater Than, Less Than</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet"> 
+    <link rel="stylesheet" href="/css/main.css">
+
+    <style>
+      body, html { padding: 0; margin: 0; height: 100%;}
+      .select-mode {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+      }
+      .number {
+        font-family: "Patrick Hand", sans-serif;
+        display: flex;
+        width: 100%;
+        height: 100%;
+        align-items: center;
+        justify-content: center;
+        font-size: 6rem;
+      }
+      button {
+        font-size: 2rem;
+        margin-bottom: 2rem;
+        padding: 1rem 1.618rem;
+        border: 0;
+        background: pink;
+        cursor: pointer;
+        outline: none;
+      }
+      button:hover {
+        background: cyan;
+      }
+
+      #game-select {
+        display: none;
+      }
+
+      .game-container {
+        height: 100%;
+        align-items: center;
+        justify-content: space-around;
+        flex-direction: column;
+      }
+      .selectNumberContainer {
+        /* font-family: 'Patrick Hand'; */
+        font-size: 3rem;
+      }
+      .typeNumberContainer {
+        font-size: 3rem;
+        display: flex;
+        font-display: column;
+        flex-direction: column;
+      }
+      .typeAnswerContainer {
+
+      }
+      #typeAnswer {
+        font-size: 3rem;
+        padding: .6rem;
+        text-align: center;
+      }
+
+      #resultContainer {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10rem;
+        pointer-events: none;
+        background-color: rgba(255,255,255,0.7);
+        pointer-events: none;
+      }
+
+
+    </style>
+</head>
+<body>
+  
+
+  <div id="start" class="select-mode">
+    <h1>Choose a mode</h1>
+    <button id="selectChoose">Choose More Than and Less Than</button>
+    <button id="selectType">Type More Than and Less Than</button>
+  </div>
+
+  <!--  -->
+
+  <div class="game-container" id="gameSelect" style="display: none;">
+
+    <div id="selectMode">
+      <a href="/greater-than-less-than/">Back to mode selection</a>
+    </div>
+
+    <div class="selectNumberContainer">
+      Is <span id="selectNumberTarget"></span> more than, or less than <span id="selectNumber"></span>?
+    </div>
+
+    <div id="action">
+      <button id="gt">More Than</button>
+      <button id="lt">Less Than</button>
+    </div>
+
+  </div>
+
+  <!--  -->
+
+  <div class="game-container" id="gameType" style="display: none;">
+
+    <div id="selectMode">
+      <a href="/greater-than-less-than/">Back to mode selection</a>
+    </div>
+
+    <div class="typeNumberContainer">
+      <div>What is 1 <span id="typeQuestion"></span> than </span><span id="typeNumber"></span>?</div>
+      <div class="typeAnswerContainer"><input type="number" id="typeAnswer"></div>
+    </div>
+
+    <div id="action">
+      <button id="typeCheckBtn">Check it</button>
+    </div>
+
+  </div>
+
+  <div id="resultContainer" style="display: none;"></div>
+
+
+  <script>
+    
+    // DOM
+    const startScreen = document.getElementById('start');
+    const selectChoose = document.getElementById('selectChoose'); 
+    const selectType = document.getElementById('selectType');
+    
+    const gameSelect = document.getElementById('gameSelect');
+    const gameType = document.getElementById('gameType');
+
+    const gt = document.getElementById("gt");
+    const lt = document.getElementById("lt");
+
+    const resultContainer = document.getElementById('resultContainer');
+
+    // Select Game
+    const selectNumber = document.getElementById('selectNumber');
+    const selectNumberTarget = document.getElementById('selectNumberTarget');
+
+    // Type Game
+    const typeQuestion = document.getElementById('typeQuestion');
+    const typeNumber = document.getElementById('typeNumber');
+    const typeAnswer = document.getElementById('typeAnswer');
+    const typeCheck = document.getElementById('typeCheckBtn');
+
+
+    // Variables
+    let mode = '';
+    let num = 0;
+    let targetNum = 0;
+
+    let typeQuestionVal = ''
+    let typeNumberVal = 0;
+    let typeAnswerVal = 0;
+
+    // Events
+    selectChoose.addEventListener('click', (e) => {
+      startScreen.style.display = 'none';
+      gameSelect.style.display = 'flex';
+      mode = 'select';
+      selectNumberChange();
+    });
+
+    selectType.addEventListener('click', (e) => {
+      startScreen.style.display = 'none';
+      gameType.style.display = 'flex';
+      mode = 'type';
+      typeNumberChange();
+    });
+
+    gt.addEventListener('click', (e) => {
+      if(targetNum > num) {
+        correctAnswer();
+      } else {
+        incorrectAnswer();
+      }
+    });
+
+    lt.addEventListener('click', (e) => {
+      if(targetNum < num) {
+        correctAnswer();
+      } else {
+        incorrectAnswer();
+      }
+    });
+
+    typeCheck.addEventListener('click', (e) => {
+      
+      // Copy the one to be checked against
+      let check = typeNumberVal;
+      
+      // The one written in the box
+      typeAnswerVal = Number(typeAnswer.value);
+
+      if(typeQuestionVal == 'more') {
+        // More than
+        check++;
+      } else {
+        // Less than
+        check--;
+      }
+
+      if(check == typeAnswerVal) {
+        correctAnswer();
+      } else {
+        incorrectAnswer();
+      }
+
+    });
+
+    // Functions
+    const selectNumberChange = function() {
+      num = Math.floor(1 + Math.random()*10);
+      selectNumber.innerHTML = num;
+  
+      targetNum = ` ${num} `;
+      
+      if(Math.random() > .5) { 
+        targetNum--;
+      } else {
+        targetNum++;
+      }
+      selectNumberTarget.innerHTML = ` ${targetNum} `;
+    }
+
+
+    const typeNumberChange = function() {
+      typeNumberVal = Math.floor(1 + Math.random()*10);
+      typeNumber.innerHTML = typeNumberVal;
+      
+      if(Math.random() > .5) { 
+        typeQuestionVal = 'more';
+      } else {
+        typeQuestionVal = 'less';
+      }
+      typeQuestion.innerHTML = ` ${typeQuestionVal} `;
+    }
+
+    const correctAnswer = function() {
+      resultContainer.innerText = '😺';
+      resultContainer.style.display = 'flex';
+      clearResultScreen();
+    }
+
+    const incorrectAnswer = function() {
+      resultContainer.innerText = '😿';    
+      resultContainer.style.display = 'flex';
+      clearResultScreen();
+    }
+
+    const clearResultScreen = function() {
+      gt.style.pointerEvents = 'none'
+      lt.style.pointerEvents = 'none'
+      setTimeout(() => {
+        resultContainer.style.display = 'none';
+        gt.style.pointerEvents = 'auto'
+        lt.style.pointerEvents = 'auto'
+
+        /// NEED T CHANGE THE MODE HERE
+        if(mode == 'select') {
+          selectNumberChange();
+        } else {
+          typeNumberChange();
+        }
+        
+
+      }, 1000)
+    }
+
+
+
+
+  </script>
+
+</body>
+</html>
